@@ -1,0 +1,37 @@
+
+2023-09-22T11:59
+Here was my message to Tsung-Han: 
+
+Hi Tsung-Han,
+
+Here's my attempt at a compact summary lol. In the plots above, I made three cutbacks, pushing the round trip dispersion from 1.89 -> 1.60 -> 1.31, with the rep-rate going from 113 -> 115 -> 117 MHz. I couldn't get mode-locking at 111 MHz, which was the cutback for 113 MHz. 
+
+After 117 MHz, I accidentally broke the passive fiber, and so had to jump to 122 MHz, where I lost mode-locking. After a few iterations, I ended up with the gain fiber at 67.5 cm, with a rep-rate of 130 MHz. I thought this should work since this corresponds to a round trip dispersion of 1.32 which should work given the previous cutbacks. However, I don't see it mode-lock, although it shows the usual fluctuations where it's probably close.
+
+Not sure whether to try mode-locking it again, or to just switch to the ER-110, since that’s the one I would have to use anyways. 
+
+Notes:
+    1. If the ER-80 has D = -20 ps/nm/km, then I get mode-locking with round trip dispersion lower than 2.17 ps/nm/km, which I think is a different range than what Tsung-Han had previously considered?
+
+    2. The round trip dispersion <-> mode-locking relation doesn't seem repeatable, in that I mode-locked it at 117 MHz with 75 cm of gain fiber -> DRT = 1.32, but can't get mode-locking with DRT = 1.32 at 67.5 cm of gain fiber and fr = 130 MHz. 
+
+    3. Anyways, I'm following the method I outlined in the group meeting slides that I plan to present next Friday, but no luck :(.
+
+    4. It's possible that gain and dispersion are coupled together. In which case, maybe the only reliable way to get there is:
+        a. at a lower rep-rate with more leeway on pigtails, confirm that you can mode-lock -> the components are good and directionality of the phase bias is correct.
+
+        b. splice in the length of gain fiber that you plan to use, with the pigtails spliced to the gain fiber already cut down to length. Then cut back the passive fiber until you mode-lock it at the rep-rate you want. 
+
+------------------------------
+2023-10-06T12:25
+Tsung-Han achieved mode-locking using the ER 80 normal and anomalous, almost half and half, which means round trip dispersion is like D=4.
+
+A little unusual though if round trip dispersion is supposed to be super anomalous, because I cut back to mode-lock, with mode-locking hitting at around D = 1.89. 
+
+He says that he also achieved it using the ER 110, with lengths around what I used 35 - 40 cm, which is aroudn what I used, so I'm not sure why mine does't work, he might have estimated numbers. 
+
+I think the takeaway is that maybe you need to be quite a bit more anomalous. Like start out at D=5 ps/nm/km
+
+------------------------------
+starting gain:
+The amount of pump light absorbed in each slice is directly proportional to the population inversion in the slice
