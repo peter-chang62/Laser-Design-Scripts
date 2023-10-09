@@ -1,2 +1,4 @@
 ~$nLIGHT_Er80-8_125-PM_simulated_GVD_dispersion.xlsx
 ~$nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx
+__pycache__/
+*.DS_Store
