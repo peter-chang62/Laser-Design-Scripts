@@ -35,3 +35,25 @@ I think the takeaway is that maybe you need to be quite a bit more anomalous. Li
 ------------------------------
 starting gain:
 The amount of pump light absorbed in each slice is directly proportional to the population inversion in the slice
+
+----------------------------------------------------------
+2023-10-09T16:33
+
+I am having trouble accounting for gain saturation, in that I don't know how to implement it. I also don't know how to implement 110 dB/m absorption at 1530 without having that be an extremely high number...
+
+Also, how do you account for the fact that if you have a strongly peaked spectrum, the narrow portion of it can eat out all the gain?
+
+2023-10-10T11:31
+sure there's all this weird stuff, but at the end of the day you only know so much empirically... so you must be using a much simpler model, and it can't be that complicated.
+
+organizing:
+
+My hunch is that if I can understand chapter 1, I can model EDFA's together with what I already know for NLSE, and using the absorption coefficients I got from Ansys. 
+
+1. three level scheme
+2. accounting for stark splitting in three level scheme
+3. propagation
+4. accounting for ASE
+4. simple case of a step doping, solve full numerical equaton
+5. density matrix representation
+6. inhomogeneous broadening
