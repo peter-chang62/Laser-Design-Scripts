@@ -36,7 +36,7 @@ elif system.lower() == "optiwave":
 a = np.c_[sigma[:, 0], sigma[:, 1]]
 e = np.c_[sigma[:, 0], sigma[:, 2]]
 
-factor = 5 / a[:, 1].max()
+factor = 11 * np.log(10) / a[:, 1].max()
 a[:, 1] *= factor
 e[:, 1] *= factor
 
@@ -89,7 +89,7 @@ model = fiber.generate_model(
 )
 dz = model.estimate_step_size(local_error=1e-6)
 sim = model.simulate(
-    z_grid=2,
+    z_grid=.3,
     dz=dz,
     local_error=1e-6,
     n_records=100,
@@ -111,7 +111,7 @@ wl = np.linspace(*a[:, 0][[0, -1]], 1000)
 a_spl = spl_a(c / wl)
 e_spl = spl_e(c / wl)
 for i in range(1, d.shape[0] - 1):
-    ax.plot(wl * 1e9, e_spl * (1 + d[i]) - a_spl * (1 - d[i]))
+    ax.plot(wl * 1e9, e_spl / 2 * (1 + d[i]) - a_spl / 2 * (1 - d[i]))
 ax.set_xlabel("wavelength (nm)")
 ax.set_ylabel("gain ($\\mathrm{m^{-1}}$)")
 fig.tight_layout()

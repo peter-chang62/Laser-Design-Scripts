@@ -57,3 +57,11 @@ My hunch is that if I can understand chapter 1, I can model EDFA's together with
 4. simple case of a step doping, solve full numerical equaton
 5. density matrix representation
 6. inhomogeneous broadening
+
+Notes:
+
+    - the rate equations are all good, but they are not useful if in the end they're all replaced with the experimental absorption and emission coefficients...
+
+    - jump to generalized rate equations for pump, signal and ase
+
+    - 

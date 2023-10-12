@@ -91,7 +91,13 @@ max_gain = spl_e(pulse.v_grid)
 max_absorption = spl_a(pulse.v_grid)
 
 
-def alpha(z):
+e_p_test = []
+
+
+def alpha(z, p_v):
+    if p_v is not None:
+        dv = pulse.dv
+        e_p_test.append([z, np.sum(p_v * dv)])
     inv = spl_inversion(z)
     return (max_gain * (1 + inv) - max_absorption * (1 - inv)) / 2
 
@@ -126,7 +132,7 @@ fig, ax = plt.subplots(1, 1)
 Z = np.linspace(0, length, 100)
 G = np.zeros((Z.size, pulse.n))
 for n, i in enumerate(Z):
-    G[n] = alpha(i)
+    G[n] = alpha(i, None)
 ax.pcolormesh(pulse.wl_grid * 1e9, Z, G, cmap="jet")
 ax.set_xlabel("wavelength (nm)")
 ax.set_ylabel("z")
