@@ -32,8 +32,8 @@ def _term(overlap, sigma, P, nu):
     return overlap * P * sigma / (a_eff * h * nu)
 
 
-def n2_over_n(pulse, Pp, p_v, sigm_p, sigma_a, sigma_e):
-    pump_term = _term(1, sigm_p, Pp, c / 980e-9)
+def n2_over_n(pulse, Pp, p_v, sigma_p, sigma_a, sigma_e):
+    pump_term = _term(1, sigma_p, Pp, c / 980e-9)
     num_sum = _term(1, sigma_a, f_r * p_v, pulse.v_grid)
     denom_sum = _term(1, sigma_a + sigma_e, f_r * p_v, pulse.v_grid)
     num = pump_term + np.sum(num_sum * pulse.dv)
@@ -53,8 +53,8 @@ def dpdz(overlap, n2_n, p, sigma_a, sigma_e, alph):
 
 
 # calculate the gain coefficient
-def alpha(pulse, z, p_v, Pp, overlap, sigm_p, sigma_a, sigma_e):
-    n2_n = n2_over_n(pulse, Pp, p_v, sigm_p, sigma_a, sigma_e)
+def alpha(pulse, z, p_v, Pp, overlap, sigma_p, sigma_a, sigma_e):
+    n2_n = n2_over_n(pulse, Pp, p_v, sigma_p, sigma_a, sigma_e)
     n2 = n2_n * n_ion
     n1 = n_ion - n2
     return overlap * n2 * sigma_e - overlap * n1 * sigma_a
@@ -68,7 +68,7 @@ def amplify(
     Pp_0_f,
     Pp_0_b,
     length,
-    sigma_pump,
+    sigma_p,
     sigma_a,
     sigma_e,
     error=1e-3,
@@ -92,7 +92,7 @@ def amplify(
     # The starting pump profile is just a decaying exponential. We "shoot"
     # solutions from both ends if forward and backward pumped.
     z_pump_grid = np.linspace(0, length, 1000)
-    func = lambda p, z_pump_grid: dpdz(1, 0, p, sigma_pump, 0, 0)
+    func = lambda p, z_pump_grid: dpdz(1, 0, p, sigma_p, 0, 0)
     if fwd:
         sol_f = odeint(func, np.array([Pp_0_f]), z_pump_grid)
     else:
@@ -120,7 +120,7 @@ def amplify(
             p_v,
             spl_Pp_fwd(z),
             1,
-            sigma_pump,
+            sigma_p,
             sigma_a,
             sigma_e,
         ),
@@ -144,7 +144,7 @@ def amplify(
                 p_v,
                 spl_Pp_bck(z),
                 1,
-                sigma_pump,
+                sigma_p,
                 sigma_a,
                 sigma_e,
             ),
@@ -176,13 +176,13 @@ def amplify(
             p_v += sim_bck.p_v[::-1]
         for n, z in enumerate(sim_fwd.z):
             n2_n[n] = n2_over_n(
-                pulse_fwd, spl_Pp_fwd(z), p_v[n], sigma_pump, sigma_a, sigma_e
+                pulse_fwd, spl_Pp_fwd(z), p_v[n], sigma_p, sigma_a, sigma_e
             )
 
         # use n2_n to calculate the updated pump profile
         if fwd:
             spl_n2_n_f = InterpolatedUnivariateSpline(sim_fwd.z, n2_n, ext="const")
-            func_f = lambda p, z: dpdz(1, spl_n2_n_f(z), p, sigma_pump, 0, 0)
+            func_f = lambda p, z: dpdz(1, spl_n2_n_f(z), p, sigma_p, 0, 0)
             sol_f = odeint(func_f, np.array([Pp_0_f]), z_pump_grid)
         else:
             sol_f = np.array([0])
@@ -190,7 +190,7 @@ def amplify(
             spl_n2_n_b = InterpolatedUnivariateSpline(
                 sim_fwd.z, n2_n[::-1], ext="const"
             )
-            func_b = lambda p, z: dpdz(1, spl_n2_n_b(z), p, sigma_pump, 0, 0)
+            func_b = lambda p, z: dpdz(1, spl_n2_n_b(z), p, sigma_p, 0, 0)
             sol_b = odeint(func_b, np.array([Pp_0_b]), z_pump_grid)[::-1]
         else:
             sol_b = np.array([0])
@@ -217,7 +217,7 @@ def amplify(
                 p_v,
                 spl_Pp_fwd(z),
                 1,
-                sigma_pump,
+                sigma_p,
                 sigma_a,
                 sigma_e,
             ),
@@ -240,7 +240,7 @@ def amplify(
                     p_v,
                     spl_Pp_bck(z),
                     1,
-                    sigma_pump,
+                    sigma_p,
                     sigma_a,
                     sigma_e,
                 ),
@@ -325,21 +325,33 @@ omega0 = 2 * np.pi * c / 1550e-9
 polyfit = np.polyfit(omega - omega0, gvd[:, 1], deg=3)
 polyfit = polyfit[::-1]  # lowest order first
 
-# %% ------------- pulse ------------------------------------------------------¬
+# %% ------------- pulse ------------------------------------------------------
 n = 256
 v_min = c / 2000e-9
 v_max = c / 1000e-9
 v0 = c / 1550e-9
 e_p = 10e-12
-t_fwhm = 250e-15
+t_fwhm_short = 250e-15
+t_fwhm_long = 2e-12
 min_time_window = 20e-12
-pulse = pynlo.light.Pulse.Sech(
+pulse_short = pynlo.light.Pulse.Sech(
     n,
     v_min,
     v_max,
     v0,
     e_p,
-    t_fwhm,
+    t_fwhm_short,
+    min_time_window,
+    alias=2,
+)
+
+pulse_long = pynlo.light.Pulse.Sech(
+    n,
+    v_min,
+    v_max,
+    v0,
+    e_p,
+    t_fwhm_long,
     min_time_window,
     alias=2,
 )
@@ -349,69 +361,26 @@ fiber = pynlo.materials.SilicaFiber()
 fiber.set_beta_from_beta_n(v0, polyfit)
 fiber.gamma = 4 / (W * km)
 
-# %% -------- edfa pump power parameter sweep  --------------------------------
-length = 5
-start = 1e-3
-stop = 50e-3
-step = 1e-3 / 2.0
-Pp = np.arange(start, stop + step, step)
-AMP = []
-for n, pp in enumerate(tqdm(Pp)):
-    amp = amplify(
-        pulse,
-        None,
-        fiber,
-        pp,
-        pp,
-        length,
-        sigma_pump,
-        spl_a(pulse.v_grid),
-        spl_e(pulse.v_grid),
-        error=1e-3,
-    )
-    AMP.append(amp)
+# %% ------------- edfa -------------------------------------------------------
+amp = amplify(
+    pulse_short,
+    pulse_short,
+    fiber,
+    0,
+    50e-3,
+    5,
+    sigma_pump,
+    spl_a(pulse_short.v_grid),
+    spl_e(pulse_short.v_grid),
+    error=1e-3,
+)
 
-# %% ------------------------- look at results! -------------------------------
-g_dB = np.asarray([i.g_dB_fwd for i in AMP])
+# %% --------- look at results! -----------------------------------------------
+amp.sim_fwd.plot("wvl", num="forward")
+amp.sim_bck.plot("wvl", num="backward")
 
 fig, ax = plt.subplots(1, 1)
-ax.plot(Pp * 1e3, g_dB)
-ax.set_xlabel("pump power (mW)")
-ax.set_ylabel("signal gain (dB)")
-fig.tight_layout()
-
-fig, ax = plt.subplots(3, 1, figsize=np.array([4.67, 8.52]))
-ax[:] = ax[::-1]
-idx_min = g_dB.argmin()
-idx_half = abs(g_dB - g_dB.max() / 2).argmin()
-idx_max = g_dB.argmax()
-
-ax[0].plot(AMP[idx_min].sim_fwd.z, AMP[idx_min].n2_n)
-ax[0].set_ylabel("$\\mathrm{n_2/n_1}$")
-ax_2 = ax[0].twinx()
-ax_2.plot(AMP[idx_min].sim_fwd.z, AMP[idx_min].Pp * 1e3, "C1")
-ax_2.set_ylabel("pump power (mW)")
-ax[0].set_xlabel("position (m)")
-ax[0].set_ylim(ymax=1)
-
-ax[1].plot(AMP[idx_half].sim_fwd.z, AMP[idx_half].n2_n)
-ax[1].set_ylabel("$\\mathrm{n_2/n_1}$")
-ax_2 = ax[1].twinx()
-ax_2.plot(AMP[idx_half].sim_fwd.z, AMP[idx_half].Pp * 1e3, "C1")
-ax_2.set_ylabel("pump power (mW)")
-ax[1].set_xlabel("position (m)")
-ax[1].set_ylim(ymax=1)
-
-ax[2].plot(AMP[idx_max].sim_fwd.z, AMP[idx_max].n2_n)
-ax[2].set_ylabel("$\\mathrm{n_2/n_1}$")
-ax_2 = ax[2].twinx()
-ax_2.plot(AMP[idx_max].sim_fwd.z, AMP[idx_max].Pp * 1e3, "C1")
-ax_2.set_ylabel("pump power (mW)")
-ax[2].set_xlabel("position (m)")
-ax[2].set_ylim(ymax=1)
-
-fig.tight_layout()
-
-AMP[idx_min].sim_fwd.plot("wvl", num="minimum")
-AMP[idx_half].sim_fwd.plot("wvl", num="half")
-AMP[idx_max].sim_fwd.plot("wvl", num="max")
+ax.plot(amp.sim_fwd.z, amp.Pp)
+ax_2 = ax.twinx()
+ax_2.plot(amp.sim_fwd.z, amp.n2_n, "C1")
+ax_2.set_ylim(ymax=1)
