@@ -32,10 +32,10 @@ def _term(overlap, sigma, P, nu):
     return overlap * P * sigma / (a_eff * h * nu)
 
 
-def n2_over_n(pulse, Pp, p_v, sigm_p, sigm_a, sigm_e):
+def n2_over_n(pulse, Pp, p_v, sigm_p, sigma_a, sigma_e):
     pump_term = _term(1, sigm_p, Pp, c / 980e-9)
-    num_sum = _term(1, sigm_a, f_r * p_v, pulse.v_grid)
-    denom_sum = _term(1, sigm_a + sigm_e, f_r * p_v, pulse.v_grid)
+    num_sum = _term(1, sigma_a, f_r * p_v, pulse.v_grid)
+    denom_sum = _term(1, sigma_a + sigma_e, f_r * p_v, pulse.v_grid)
     num = pump_term + np.sum(num_sum * pulse.dv)
     denom = 1 / tau + pump_term + np.sum(denom_sum * pulse.dv)
     return num / denom
@@ -44,20 +44,20 @@ def n2_over_n(pulse, Pp, p_v, sigm_p, sigm_a, sigm_e):
 # calculate power z-derivative for a given inversion and absorption and
 # emission cross-section. This is a general equation that can be applied to
 # both signal and pump, although I only use it for the pump
-def dpdz(overlap, n2_n, p, sigm_a, sigm_e, alph):
+def dpdz(overlap, n2_n, p, sigma_a, sigma_e, alph):
     n2 = n2_n * n_ion
     n1 = n_ion - n2
-    add = overlap * sigm_e * n2 * p
-    subtract = overlap * sigm_a * n1 * p + alph * p
+    add = overlap * sigma_e * n2 * p
+    subtract = overlap * sigma_a * n1 * p + alph * p
     return add - subtract
 
 
 # calculate the gain coefficient
-def alpha(pulse, z, p_v, Pp, overlap, sigm_p, sigm_a, sigm_e):
-    n2_n = n2_over_n(pulse, Pp, p_v, sigm_p, sigm_a, sigm_e)
+def alpha(pulse, z, p_v, Pp, overlap, sigm_p, sigma_a, sigma_e):
+    n2_n = n2_over_n(pulse, Pp, p_v, sigm_p, sigma_a, sigma_e)
     n2 = n2_n * n_ion
     n1 = n_ion - n2
-    return overlap * n2 * sigm_e - overlap * n1 * sigm_a
+    return overlap * n2 * sigma_e - overlap * n1 * sigma_a
 
 
 # %% ------------- jointly solve RE and NLSE ----------------------------------
