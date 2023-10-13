@@ -87,22 +87,20 @@ def amplify(
         seed_bck = True
     else:
         seed_bck = False
+    assert pulse_fwd is not None, "there must be a forward propagating pulse"
 
     # The starting pump profile is just a decaying exponential. We "shoot"
-    # solutions from both ends if forward and backward pumped. It's true that
-    # solving independently will lead to incorrect results where the pumps
-    # overlap, but this is really just an approximation that will be made
-    # better later by iterating!
+    # solutions from both ends if forward and backward pumped.
     z_pump_grid = np.linspace(0, length, 1000)
     func = lambda p, z_pump_grid: dpdz(1, 0, p, sigma_pump, 0, 0)
     if fwd:
         sol_f = odeint(func, np.array([Pp_0_f]), z_pump_grid)
     else:
-        sol_f = 0
+        sol_f = np.array([0])
     if bck:
         sol_b = odeint(func, np.array([Pp_0_b]), z_pump_grid)[::-1]
     else:
-        sol_b = 0
+        sol_b = np.array([0])
     spl_Pp_fwd = InterpolatedUnivariateSpline(z_pump_grid, sol_f + sol_b, ext="zeros")
     if seed_bck:
         spl_Pp_bck = InterpolatedUnivariateSpline(
@@ -136,9 +134,6 @@ def amplify(
     p_out_fwd = sim_fwd.pulse_out
 
     if seed_bck:
-        get_z_idx = lambda z: abs(sim_fwd.z[::-1] - z).argmin()
-        spl_p_v_fwd = lambda z: sim_fwd.p_v[get_z_idx(z)]
-
         model_bck = fiber.generate_model(
             pulse_bck,
             t_shock="auto",
@@ -146,7 +141,7 @@ def amplify(
             alpha=lambda z, p_v: alpha(
                 pulse_bck,
                 z,
-                p_v,  # + spl_p_v_fwd(z),
+                p_v,
                 spl_Pp_bck(z),
                 1,
                 sigma_pump,
@@ -161,18 +156,19 @@ def amplify(
             z_grid=length, dz=dz, n_records=int(np.round(length / dz))
         )
         p_out_bck = sim_bck.pulse_out
-
-        get_z_idx = lambda z: abs(sim_bck.z[::-1] - z).argmin()
-        spl_p_v_bck = lambda z: sim_bck.p_v[get_z_idx(z)]
     else:
-        spl_p_v_bck = lambda z: 0
+        p_out_bck = None
+        sim_bck = None
+        gain_dB_bck = None
 
     # ------------- iterate! -----------------------------------------------
     REL_ERROR_FWD = []
     REL_ERROR_BCK = []
-    rel_error_fwd = 100
-    rel_error_bck = 100
-    while rel_error_fwd > error or rel_error_bck > error:
+    rel_error_fwd = None
+    rel_error_bck = None
+    done_fwd = False
+    done_bck = False
+    while not done_fwd or not done_bck:
         # calculate n2_n and grid it
         n2_n = np.zeros(sim_fwd.z.size)
         p_v = sim_fwd.p_v.copy()
@@ -189,7 +185,7 @@ def amplify(
             func_f = lambda p, z: dpdz(1, spl_n2_n_f(z), p, sigma_pump, 0, 0)
             sol_f = odeint(func_f, np.array([Pp_0_f]), z_pump_grid)
         else:
-            sol_f = 0
+            sol_f = np.array([0])
         if bck:
             spl_n2_n_b = InterpolatedUnivariateSpline(
                 sim_fwd.z, n2_n[::-1], ext="const"
@@ -197,13 +193,12 @@ def amplify(
             func_b = lambda p, z: dpdz(1, spl_n2_n_b(z), p, sigma_pump, 0, 0)
             sol_b = odeint(func_b, np.array([Pp_0_b]), z_pump_grid)[::-1]
         else:
-            sol_b = 0
+            sol_b = np.array([0])
         spl_Pp_fwd = InterpolatedUnivariateSpline(
             z_pump_grid,
             sol_f + sol_b,
             ext="zeros",
         )
-
         if seed_bck:
             spl_Pp_bck = InterpolatedUnivariateSpline(
                 z_pump_grid,
@@ -211,7 +206,7 @@ def amplify(
                 ext="zeros",
             )
 
-        # use the updated pump profile to re-propagate the pulse_fwd
+        # use the updated pump profile to re-propagate the pulse
         model_fwd = fiber.generate_model(
             pulse_fwd,
             t_shock="auto",
@@ -219,7 +214,7 @@ def amplify(
             alpha=lambda z, p_v: alpha(
                 pulse_fwd,
                 z,
-                p_v + spl_p_v_bck(z),
+                p_v,
                 spl_Pp_fwd(z),
                 1,
                 sigma_pump,
@@ -235,9 +230,6 @@ def amplify(
         )
 
         if seed_bck:
-            get_z_idx = lambda z: abs(sim_fwd.z[::-1] - z).argmin()
-            spl_p_v_fwd = lambda z: sim_fwd.p_v[get_z_idx(z)]
-
             model_bck = fiber.generate_model(
                 pulse_bck,
                 t_shock="auto",
@@ -245,7 +237,7 @@ def amplify(
                 alpha=lambda z, p_v: alpha(
                     pulse_bck,
                     z,
-                    p_v + spl_p_v_fwd(z),
+                    p_v,
                     spl_Pp_bck(z),
                     1,
                     sigma_pump,
@@ -260,27 +252,34 @@ def amplify(
                 z_grid=length, dz=dz, n_records=int(np.round(length / dz))
             )
 
-            get_z_idx = lambda z: abs(sim_bck.z[::-1] - z).argmin()
-            spl_p_v_bck = lambda z: sim_bck.p_v[get_z_idx(z)]
-        else:
-            spl_p_v_bck = lambda z: 0
-
         rel_error_fwd = abs(
             (p_out_fwd.e_p - sim_fwd.pulse_out.e_p) / sim_fwd.pulse_out.e_p
         )
-        rel_error_bck = abs(
-            (p_out_bck.e_p - sim_bck.pulse_out.e_p) / sim_bck.pulse_out.e_p
-        )
         REL_ERROR_FWD.append(rel_error_fwd)
-        REL_ERROR_BCK.append(rel_error_bck)
         p_out_fwd = sim_fwd.pulse_out
-        p_out_bck = sim_bck.pulse_out
+        gain_dB_fwd = 10 * np.log10(p_out_fwd.e_p / pulse_fwd.e_p)
+
+        if seed_bck:
+            rel_error_bck = abs(
+                (p_out_bck.e_p - sim_bck.pulse_out.e_p) / sim_bck.pulse_out.e_p
+            )
+            REL_ERROR_BCK.append(rel_error_bck)
+            p_out_bck = sim_bck.pulse_out
+            gain_dB_bck = 10 * np.log10(p_out_bck.e_p / pulse_bck.e_p)
 
         print(rel_error_fwd, rel_error_bck)
 
-    gain_dB_fwd = 10 * np.log10(p_out_fwd.e_p / pulse_fwd.e_p)
-    gain_dB_bck = 10 * np.log10(p_out_bck.e_p / pulse_bck.e_p)
-    print(f"{gain_dB_fwd} dB forward gain and {gain_dB_bck} backward gain")
+        if rel_error_fwd < error:
+            done_fwd = True
+        if not seed_bck:
+            done_bck = True
+        else:
+            if rel_error_bck < error:
+                done_bck = True
+
+    print(f"{gain_dB_fwd} dB forward gain")
+    if seed_bck:
+        print(f"{gain_dB_bck} dB backward gain")
 
     amp = collections.namedtuple(
         "amp",
@@ -353,10 +352,10 @@ fiber.gamma = 4 / (W * km)
 # %% ------------- edfa -------------------------------------------------------
 amp = amplify(
     pulse,
-    pulse,
+    None,
     fiber,
     50e-3,
-    50e-3,
+    0,
     5,
     sigma_pump,
     spl_a(pulse.v_grid),
