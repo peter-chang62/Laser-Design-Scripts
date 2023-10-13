@@ -84,8 +84,9 @@ def n2_over_n(Pp, p_v, sigm_p, sigm_a, sigm_e):
     return num / denom
 
 
-# calculate gain for a given inversion and absorption and emission cross-section
-# this is a general equation for both signal and pump
+# calculate power z-derivative for a given inversion and absorption and
+# emission cross-section. This is a general equation that can be applied to
+# both signal and pump, although I only use it for the pump
 def dpdz(overlap, n2_n, p, sigm_a, sigm_e, alph):
     n2 = n2_n * n_ion
     n1 = n_ion - n2
@@ -94,6 +95,7 @@ def dpdz(overlap, n2_n, p, sigm_a, sigm_e, alph):
     return add - subtract
 
 
+# calculate the gain coefficient
 def alpha(z, p_v, Pp, overlap, sigm_p, sigm_a, sigm_e):
     n2_n = n2_over_n(Pp, p_v, sigm_p, sigm_a, sigm_e)
     n2 = n2_n * n_ion
@@ -101,17 +103,22 @@ def alpha(z, p_v, Pp, overlap, sigm_p, sigm_a, sigm_e):
     return overlap * n2 * sigm_e - overlap * n1 * sigm_a
 
 
-# %% ------------- starting pump and gain profile -----------------------------
-def amplify(Pp_0, length):
+# %% ------------- jointly solve RE and NLSE ----------------------------------
+def amplify(Pp_0, length, direction=1, error=1e-3):
+    assert (
+        direction == 1 or direction == -1
+    ), "direction is 1 for forward and -1 for backward"
+
     # starting pump profile is just a decaying exponential
-    # Pp_0 = 100
-    # length = 5.0
     z_pump_grid = np.linspace(0, length, 1000)
     func = lambda p, z_pump_grid: dpdz(1, 0, p, sigma_pump, 0, 0)
     sol = odeint(func, np.array([Pp_0]), z_pump_grid)
+    if direction == -1:
+        # for backward propagation reverse the pump to propagate the pulse
+        sol = sol[::-1]
     spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol, ext="zeros")
 
-    # %% ------------- model --------------------------------------------------
+    # ------------- model --------------------------------------------------
     sigma_a = spl_a(pulse.v_grid)
     sigma_e = spl_e(pulse.v_grid)
     model = fiber.generate_model(
@@ -122,24 +129,31 @@ def amplify(Pp_0, length):
         method="nlse",
     )
 
-    # %% ------------- sim ----------------------------------------------------
+    # ------------- sim ----------------------------------------------------
     dz = model.estimate_step_size()
     sim = model.simulate(z_grid=length, dz=dz, n_records=250)
     p_out = sim.pulse_out
 
-    # %% ------------- iterate! -----------------------------------------------
+    # ------------- iterate! -----------------------------------------------
     REL_ERROR = []
     rel_error = 100
-    while rel_error > 1e-3:
+    while rel_error > error:
         # calculate n2_n and grid it
         n2_n = np.zeros(sim.z.size)
         for n, z in enumerate(sim.z):
             n2_n[n] = n2_over_n(spl_Pp(z), sim.p_v[n], sigma_pump, sigma_a, sigma_e)
+        if direction == -1:
+            # for backward propagation reverse the pulse's propagation
+            # direction to calculate the pump
+            n2_n = n2_n[::-1]
         spl_n2_n = InterpolatedUnivariateSpline(sim.z, n2_n, ext="const")
 
         # use n2_n to calculate the updated pump profile
         func = lambda p, z: dpdz(1, spl_n2_n(z), p, sigma_pump, 0, 0)
         sol = odeint(func, np.array([Pp_0]), z_pump_grid)
+        if direction == -1:
+            # for backward propagation reverse the pump to propagate the pulse
+            sol = sol[::-1]
         spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol, ext="zeros")
 
         # use the updated pump profile to re-propagate the pulse
@@ -164,9 +178,10 @@ def amplify(Pp_0, length):
 
     gain_dB = 10 * np.log10(p_out.e_p / pulse.e_p)
     print(f"{gain_dB} dB gain")
-    return sim, p_out, gain_dB
+    return sim, p_out, gain_dB, n2_n, spl_Pp(sim.z)
 
 
+# %% ------------------------- parameter sweep --------------------------------
 length = 5
 start = 1e-3
 stop = 100e-3
@@ -174,11 +189,56 @@ step = 1e-3
 Pp = np.arange(start, stop + step, step)
 AMP = []
 for n, pp in enumerate(tqdm(Pp)):
-    res = amplify(pp, length)
-    amp = collections.namedtuple("amp", ["sim", "pulse", "g_dB"])
+    res = amplify(pp, length, direction=-1)
+    amp = collections.namedtuple("amp", ["sim", "pulse", "g_dB", "n2_n", "Pp"])
     amp.sim = res[0]
     amp.pulse = res[1]
     amp.g_dB = res[2]
+    amp.n2_n = res[3]
+    amp.Pp = res[4]
     AMP.append(amp)
 
-x = np.asarray([i.g_dB for i in AMP])
+# %% ------------------------- look at results! -------------------------------
+g_dB = np.asarray([i.g_dB for i in AMP])
+
+fig, ax = plt.subplots(1, 1)
+ax.plot(Pp * 1e3, g_dB)
+ax.set_xlabel("pump power (mW)")
+ax.set_ylabel("signal gain (dB)")
+fig.tight_layout()
+
+fig, ax = plt.subplots(3, 1, figsize=np.array([4.67, 8.52]))
+ax[:] = ax[::-1]
+idx_min = g_dB.argmin()
+idx_half = abs(g_dB - g_dB.max() / 2).argmin()
+idx_max = g_dB.argmax()
+
+ax[0].plot(AMP[idx_min].sim.z, AMP[idx_min].n2_n)
+ax[0].set_ylabel("$\\mathrm{n_2/n_1}$")
+ax_2 = ax[0].twinx()
+ax_2.plot(AMP[idx_min].sim.z, AMP[idx_min].Pp * 1e3, "C1")
+ax_2.set_ylabel("pump power (mW)")
+ax[0].set_xlabel("position (m)")
+ax[0].set_ylim(ymax=1)
+
+ax[1].plot(AMP[idx_half].sim.z, AMP[idx_half].n2_n)
+ax[1].set_ylabel("$\\mathrm{n_2/n_1}$")
+ax_2 = ax[1].twinx()
+ax_2.plot(AMP[idx_half].sim.z, AMP[idx_half].Pp * 1e3, "C1")
+ax_2.set_ylabel("pump power (mW)")
+ax[1].set_xlabel("position (m)")
+ax[1].set_ylim(ymax=1)
+
+ax[2].plot(AMP[idx_max].sim.z, AMP[idx_max].n2_n)
+ax[2].set_ylabel("$\\mathrm{n_2/n_1}$")
+ax_2 = ax[2].twinx()
+ax_2.plot(AMP[idx_max].sim.z, AMP[idx_max].Pp * 1e3, "C1")
+ax_2.set_ylabel("pump power (mW)")
+ax[2].set_xlabel("position (m)")
+ax[2].set_ylim(ymax=1)
+
+fig.tight_layout()
+
+AMP[idx_min].sim.plot("wvl", num="minimum")
+AMP[idx_half].sim.plot("wvl", num="half")
+AMP[idx_max].sim.plot("wvl", num="max")
