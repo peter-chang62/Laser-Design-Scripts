@@ -62,14 +62,15 @@ def alpha(pulse, z, p_v, Pp, overlap, sigm_p, sigm_a, sigm_e):
 
 # %% ------------- jointly solve RE and NLSE ----------------------------------
 def amplify(
-    pulse,
+    pulse_fwd,
+    pulse_bck,
     fiber,
     Pp_0_f,
     Pp_0_b,
     length,
     sigma_pump,
-    spl_sigma_a,
-    spl_sigma_e,
+    sigma_a,
+    sigma_e,
     error=1e-3,
 ):
     if Pp_0_f > 0:
@@ -81,6 +82,11 @@ def amplify(
     else:
         bck = False
     assert fwd or bck, "set at least either a forward or backward pump"
+
+    if pulse_bck is not None:
+        seed_bck = True
+    else:
+        seed_bck = False
 
     # The starting pump profile is just a decaying exponential. We "shoot"
     # solutions from both ends if forward and backward pumped. It's true that
@@ -97,83 +103,206 @@ def amplify(
         sol_b = odeint(func, np.array([Pp_0_b]), z_pump_grid)[::-1]
     else:
         sol_b = 0
-    spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol_f + sol_b, ext="zeros")
+    spl_Pp_fwd = InterpolatedUnivariateSpline(z_pump_grid, sol_f + sol_b, ext="zeros")
+    if seed_bck:
+        spl_Pp_bck = InterpolatedUnivariateSpline(
+            z_pump_grid,
+            sol_f[::-1] + sol_b[::-1],
+            ext="zeros",
+        )
 
-    # ------------- model --------------------------------------------------
-    sigma_a = spl_sigma_a(pulse.v_grid)
-    sigma_e = spl_sigma_e(pulse.v_grid)
-    model = fiber.generate_model(
-        pulse,
+    # ------------- model and sim ---------------------------------------------
+    model_fwd = fiber.generate_model(
+        pulse_fwd,
         t_shock="auto",
         raman_on=True,
         alpha=lambda z, p_v: alpha(
-            pulse, z, p_v, spl_Pp(z), 1, sigma_pump, sigma_a, sigma_e
+            pulse_fwd,
+            z,
+            p_v,
+            spl_Pp_fwd(z),
+            1,
+            sigma_pump,
+            sigma_a,
+            sigma_e,
         ),
         method="nlse",
     )
 
-    # ------------- sim ----------------------------------------------------
-    dz = model.estimate_step_size()
-    sim = model.simulate(z_grid=length, dz=dz, n_records=250)
-    p_out = sim.pulse_out
+    dz = model_fwd.estimate_step_size()
+    sim_fwd = model_fwd.simulate(
+        z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+    )
+    p_out_fwd = sim_fwd.pulse_out
+
+    if seed_bck:
+        get_z_idx = lambda z: abs(sim_fwd.z[::-1] - z).argmin()
+        spl_p_v_fwd = lambda z: sim_fwd.p_v[get_z_idx(z)]
+
+        model_bck = fiber.generate_model(
+            pulse_bck,
+            t_shock="auto",
+            raman_on=True,
+            alpha=lambda z, p_v: alpha(
+                pulse_bck,
+                z,
+                p_v,  # + spl_p_v_fwd(z),
+                spl_Pp_bck(z),
+                1,
+                sigma_pump,
+                sigma_a,
+                sigma_e,
+            ),
+            method="nlse",
+        )
+
+        dz = model_bck.estimate_step_size()
+        sim_bck = model_bck.simulate(
+            z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+        )
+        p_out_bck = sim_bck.pulse_out
+
+        get_z_idx = lambda z: abs(sim_bck.z[::-1] - z).argmin()
+        spl_p_v_bck = lambda z: sim_bck.p_v[get_z_idx(z)]
+    else:
+        spl_p_v_bck = lambda z: 0
 
     # ------------- iterate! -----------------------------------------------
-    REL_ERROR = []
-    rel_error = 100
-    while rel_error > error:
+    REL_ERROR_FWD = []
+    REL_ERROR_BCK = []
+    rel_error_fwd = 100
+    rel_error_bck = 100
+    while rel_error_fwd > error or rel_error_bck > error:
         # calculate n2_n and grid it
-        n2_n = np.zeros(sim.z.size)
-        for n, z in enumerate(sim.z):
+        n2_n = np.zeros(sim_fwd.z.size)
+        p_v = sim_fwd.p_v.copy()
+        if seed_bck:
+            p_v += sim_bck.p_v[::-1]
+        for n, z in enumerate(sim_fwd.z):
             n2_n[n] = n2_over_n(
-                pulse, spl_Pp(z), sim.p_v[n], sigma_pump, sigma_a, sigma_e
+                pulse_fwd, spl_Pp_fwd(z), p_v[n], sigma_pump, sigma_a, sigma_e
             )
-        if fwd:
-            spl_n2_n_f = InterpolatedUnivariateSpline(sim.z, n2_n, ext="const")
-        if bck:
-            spl_n2_n_b = InterpolatedUnivariateSpline(sim.z, n2_n[::-1], ext="const")
 
         # use n2_n to calculate the updated pump profile
         if fwd:
+            spl_n2_n_f = InterpolatedUnivariateSpline(sim_fwd.z, n2_n, ext="const")
             func_f = lambda p, z: dpdz(1, spl_n2_n_f(z), p, sigma_pump, 0, 0)
             sol_f = odeint(func_f, np.array([Pp_0_f]), z_pump_grid)
         else:
             sol_f = 0
         if bck:
+            spl_n2_n_b = InterpolatedUnivariateSpline(
+                sim_fwd.z, n2_n[::-1], ext="const"
+            )
             func_b = lambda p, z: dpdz(1, spl_n2_n_b(z), p, sigma_pump, 0, 0)
             sol_b = odeint(func_b, np.array([Pp_0_b]), z_pump_grid)[::-1]
         else:
             sol_b = 0
-        spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol_f + sol_b, ext="zeros")
+        spl_Pp_fwd = InterpolatedUnivariateSpline(
+            z_pump_grid,
+            sol_f + sol_b,
+            ext="zeros",
+        )
 
-        # use the updated pump profile to re-propagate the pulse
-        model = fiber.generate_model(
-            pulse,
+        if seed_bck:
+            spl_Pp_bck = InterpolatedUnivariateSpline(
+                z_pump_grid,
+                sol_f[::-1] + sol_b[::-1],
+                ext="zeros",
+            )
+
+        # use the updated pump profile to re-propagate the pulse_fwd
+        model_fwd = fiber.generate_model(
+            pulse_fwd,
             t_shock="auto",
             raman_on=True,
             alpha=lambda z, p_v: alpha(
-                pulse, z, p_v, spl_Pp(z), 1, sigma_pump, sigma_a, sigma_e
+                pulse_fwd,
+                z,
+                p_v + spl_p_v_bck(z),
+                spl_Pp_fwd(z),
+                1,
+                sigma_pump,
+                sigma_a,
+                sigma_e,
             ),
             method="nlse",
         )
 
-        dz = model.estimate_step_size()
-        sim = model.simulate(z_grid=length, dz=dz, n_records=250)
+        dz = model_fwd.estimate_step_size()
+        sim_fwd = model_fwd.simulate(
+            z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+        )
 
-        rel_error = abs((p_out.e_p - sim.pulse_out.e_p) / sim.pulse_out.e_p)
-        REL_ERROR.append(rel_error)
-        print(rel_error)
+        if seed_bck:
+            get_z_idx = lambda z: abs(sim_fwd.z[::-1] - z).argmin()
+            spl_p_v_fwd = lambda z: sim_fwd.p_v[get_z_idx(z)]
 
-        p_out = sim.pulse_out
+            model_bck = fiber.generate_model(
+                pulse_bck,
+                t_shock="auto",
+                raman_on=True,
+                alpha=lambda z, p_v: alpha(
+                    pulse_bck,
+                    z,
+                    p_v + spl_p_v_fwd(z),
+                    spl_Pp_bck(z),
+                    1,
+                    sigma_pump,
+                    sigma_a,
+                    sigma_e,
+                ),
+                method="nlse",
+            )
 
-    gain_dB = 10 * np.log10(p_out.e_p / pulse.e_p)
-    print(f"{gain_dB} dB gain")
+            dz = model_bck.estimate_step_size()
+            sim_bck = model_bck.simulate(
+                z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+            )
 
-    amp = collections.namedtuple("amp", ["sim", "pulse", "g_dB", "n2_n", "Pp"])
-    amp.sim = sim
-    amp.pulse = p_out
-    amp.g_dB = gain_dB
+            get_z_idx = lambda z: abs(sim_bck.z[::-1] - z).argmin()
+            spl_p_v_bck = lambda z: sim_bck.p_v[get_z_idx(z)]
+        else:
+            spl_p_v_bck = lambda z: 0
+
+        rel_error_fwd = abs(
+            (p_out_fwd.e_p - sim_fwd.pulse_out.e_p) / sim_fwd.pulse_out.e_p
+        )
+        rel_error_bck = abs(
+            (p_out_bck.e_p - sim_bck.pulse_out.e_p) / sim_bck.pulse_out.e_p
+        )
+        REL_ERROR_FWD.append(rel_error_fwd)
+        REL_ERROR_BCK.append(rel_error_bck)
+        p_out_fwd = sim_fwd.pulse_out
+        p_out_bck = sim_bck.pulse_out
+
+        print(rel_error_fwd, rel_error_bck)
+
+    gain_dB_fwd = 10 * np.log10(p_out_fwd.e_p / pulse_fwd.e_p)
+    gain_dB_bck = 10 * np.log10(p_out_bck.e_p / pulse_bck.e_p)
+    print(f"{gain_dB_fwd} dB forward gain and {gain_dB_bck} backward gain")
+
+    amp = collections.namedtuple(
+        "amp",
+        [
+            "sim_fwd",
+            "sim_bck",
+            "pulse_fwd",
+            "pulse_bck",
+            "g_dB_fwd",
+            "g_dB_bck",
+            "n2_n",
+            "Pp",
+        ],
+    )
+    amp.sim_fwd = sim_fwd
+    amp.pulse_fwd = p_out_fwd
+    amp.sim_bck = sim_bck
+    amp.pulse_bck = p_out_bck
+    amp.g_dB_fwd = gain_dB_fwd
+    amp.g_dB_bck = gain_dB_bck
     amp.n2_n = n2_n
-    amp.Pp = spl_Pp(sim.z)
+    amp.Pp = spl_Pp_fwd(sim_fwd.z)
     return amp
 
 
@@ -197,7 +326,7 @@ omega0 = 2 * np.pi * c / 1550e-9
 polyfit = np.polyfit(omega - omega0, gvd[:, 1], deg=3)
 polyfit = polyfit[::-1]  # lowest order first
 
-# %% ------------- pulse ------------------------------------------------------¬
+# %% ------------- pulse ------------------------------------------------------
 n = 256
 v_min = c / 2000e-9
 v_max = c / 1000e-9
@@ -221,68 +350,16 @@ fiber = pynlo.materials.SilicaFiber()
 fiber.set_beta_from_beta_n(v0, polyfit)
 fiber.gamma = 4 / (W * km)
 
-# %% -------- edfa pump power parameter sweep  --------------------------------
-length = 5
-start = 1e-3
-stop = 50e-3
-step = 1e-3 / 2.0
-Pp = np.arange(start, stop + step, step)
-AMP = []
-for n, pp in enumerate(tqdm(Pp)):
-    amp = amplify(
-        pulse,
-        fiber,
-        pp,
-        pp,
-        length,
-        sigma_pump,
-        spl_a,
-        spl_e,
-        error=1e-3,
-    )
-    AMP.append(amp)
-
-# %% ------------------------- look at results! -------------------------------
-g_dB = np.asarray([i.g_dB for i in AMP])
-
-fig, ax = plt.subplots(1, 1)
-ax.plot(Pp * 1e3, g_dB)
-ax.set_xlabel("pump power (mW)")
-ax.set_ylabel("signal gain (dB)")
-fig.tight_layout()
-
-fig, ax = plt.subplots(3, 1, figsize=np.array([4.67, 8.52]))
-ax[:] = ax[::-1]
-idx_min = g_dB.argmin()
-idx_half = abs(g_dB - g_dB.max() / 2).argmin()
-idx_max = g_dB.argmax()
-
-ax[0].plot(AMP[idx_min].sim.z, AMP[idx_min].n2_n)
-ax[0].set_ylabel("$\\mathrm{n_2/n_1}$")
-ax_2 = ax[0].twinx()
-ax_2.plot(AMP[idx_min].sim.z, AMP[idx_min].Pp * 1e3, "C1")
-ax_2.set_ylabel("pump power (mW)")
-ax[0].set_xlabel("position (m)")
-ax[0].set_ylim(ymax=1)
-
-ax[1].plot(AMP[idx_half].sim.z, AMP[idx_half].n2_n)
-ax[1].set_ylabel("$\\mathrm{n_2/n_1}$")
-ax_2 = ax[1].twinx()
-ax_2.plot(AMP[idx_half].sim.z, AMP[idx_half].Pp * 1e3, "C1")
-ax_2.set_ylabel("pump power (mW)")
-ax[1].set_xlabel("position (m)")
-ax[1].set_ylim(ymax=1)
-
-ax[2].plot(AMP[idx_max].sim.z, AMP[idx_max].n2_n)
-ax[2].set_ylabel("$\\mathrm{n_2/n_1}$")
-ax_2 = ax[2].twinx()
-ax_2.plot(AMP[idx_max].sim.z, AMP[idx_max].Pp * 1e3, "C1")
-ax_2.set_ylabel("pump power (mW)")
-ax[2].set_xlabel("position (m)")
-ax[2].set_ylim(ymax=1)
-
-fig.tight_layout()
-
-AMP[idx_min].sim.plot("wvl", num="minimum")
-AMP[idx_half].sim.plot("wvl", num="half")
-AMP[idx_max].sim.plot("wvl", num="max")
+# %% ------------- edfa -------------------------------------------------------
+amp = amplify(
+    pulse,
+    pulse,
+    fiber,
+    50e-3,
+    50e-3,
+    5,
+    sigma_pump,
+    spl_a(pulse.v_grid),
+    spl_e(pulse.v_grid),
+    error=1e-3,
+)
