@@ -331,15 +331,27 @@ v_min = c / 2000e-9
 v_max = c / 1000e-9
 v0 = c / 1550e-9
 e_p = 10e-12
-t_fwhm = 250e-15
-min_time_window = 20e-12
-pulse = pynlo.light.Pulse.Sech(
+t_fwhm_short = 250e-15
+t_fwhm_long = 5e-12
+min_time_window = 40e-12
+pulse_short = pynlo.light.Pulse.Sech(
     n,
     v_min,
     v_max,
     v0,
     e_p,
-    t_fwhm,
+    t_fwhm_short,
+    min_time_window,
+    alias=2,
+)
+
+pulse_long = pynlo.light.Pulse.Sech(
+    n,
+    v_min,
+    v_max,
+    v0,
+    e_p,
+    t_fwhm_long,
     min_time_window,
     alias=2,
 )
@@ -351,14 +363,24 @@ fiber.gamma = 4 / (W * km)
 
 # %% ------------- edfa -------------------------------------------------------
 amp = amplify(
-    pulse,
-    None,
+    pulse_short,
+    pulse_long,
     fiber,
     50e-3,
-    0,
+    50e-3,
     5,
     sigma_pump,
-    spl_a(pulse.v_grid),
-    spl_e(pulse.v_grid),
+    spl_a(pulse_short.v_grid),
+    spl_e(pulse_short.v_grid),
     error=1e-3,
 )
+
+# %% --------- look at results! -----------------------------------------------
+amp.sim_fwd.plot("wvl", num="forward")
+amp.sim_bck.plot("wvl", num="backward")
+
+fig, ax = plt.subplots(1, 1)
+ax.plot(amp.sim_fwd.z, amp.Pp)
+ax_2 = ax.twinx()
+ax_2.plot(amp.sim_fwd.z, amp.n2_n, "C1")
+ax_2.set_ylim(ymax=1)
