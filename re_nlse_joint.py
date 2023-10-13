@@ -104,19 +104,33 @@ def alpha(z, p_v, Pp, overlap, sigm_p, sigm_a, sigm_e):
 
 
 # %% ------------- jointly solve RE and NLSE ----------------------------------
-def amplify(Pp_0, length, direction=1, error=1e-3):
-    assert (
-        direction == 1 or direction == -1
-    ), "direction is 1 for forward and -1 for backward"
+def amplify(Pp_0_f, Pp_0_b, length, error=1e-3):
+    if Pp_0_f > 0:
+        fwd = True
+    else:
+        fwd = False
+    if Pp_0_b > 0:
+        bck = True
+    else:
+        bck = False
+    assert fwd or bck, "set at least either a forward or backward pump"
 
-    # starting pump profile is just a decaying exponential
+    # The starting pump profile is just a decaying exponential. We "shoot"
+    # solutions from both ends if forward and backward pumped. It's true that
+    # solving independently will lead to incorrect results where the pumps
+    # overlap, but this is really just an approximation that will be made
+    # better later by iterating!
     z_pump_grid = np.linspace(0, length, 1000)
     func = lambda p, z_pump_grid: dpdz(1, 0, p, sigma_pump, 0, 0)
-    sol = odeint(func, np.array([Pp_0]), z_pump_grid)
-    if direction == -1:
-        # for backward propagation reverse the pump to propagate the pulse
-        sol = sol[::-1]
-    spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol, ext="zeros")
+    if fwd:
+        sol_f = odeint(func, np.array([Pp_0_f]), z_pump_grid)
+    else:
+        sol_f = 0
+    if bck:
+        sol_b = odeint(func, np.array([Pp_0_b]), z_pump_grid)[::-1]
+    else:
+        sol_b = 0
+    spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol_f + sol_b, ext="zeros")
 
     # ------------- model --------------------------------------------------
     sigma_a = spl_a(pulse.v_grid)
@@ -142,19 +156,23 @@ def amplify(Pp_0, length, direction=1, error=1e-3):
         n2_n = np.zeros(sim.z.size)
         for n, z in enumerate(sim.z):
             n2_n[n] = n2_over_n(spl_Pp(z), sim.p_v[n], sigma_pump, sigma_a, sigma_e)
-        if direction == -1:
-            # for backward propagation reverse the pulse's propagation
-            # direction to calculate the pump
-            n2_n = n2_n[::-1]
-        spl_n2_n = InterpolatedUnivariateSpline(sim.z, n2_n, ext="const")
+        if fwd:
+            spl_n2_n_f = InterpolatedUnivariateSpline(sim.z, n2_n, ext="const")
+        if bck:
+            spl_n2_n_b = InterpolatedUnivariateSpline(sim.z, n2_n[::-1], ext="const")
 
         # use n2_n to calculate the updated pump profile
-        func = lambda p, z: dpdz(1, spl_n2_n(z), p, sigma_pump, 0, 0)
-        sol = odeint(func, np.array([Pp_0]), z_pump_grid)
-        if direction == -1:
-            # for backward propagation reverse the pump to propagate the pulse
-            sol = sol[::-1]
-        spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol, ext="zeros")
+        if fwd:
+            func_f = lambda p, z: dpdz(1, spl_n2_n_f(z), p, sigma_pump, 0, 0)
+            sol_f = odeint(func_f, np.array([Pp_0_f]), z_pump_grid)
+        else:
+            sol_f = 0
+        if bck:
+            func_b = lambda p, z: dpdz(1, spl_n2_n_b(z), p, sigma_pump, 0, 0)
+            sol_b = odeint(func_b, np.array([Pp_0_b]), z_pump_grid)[::-1]
+        else:
+            sol_b = 0
+        spl_Pp = InterpolatedUnivariateSpline(z_pump_grid, sol_f + sol_b, ext="zeros")
 
         # use the updated pump profile to re-propagate the pulse
         model = fiber.generate_model(
@@ -178,22 +196,18 @@ def amplify(Pp_0, length, direction=1, error=1e-3):
 
     gain_dB = 10 * np.log10(p_out.e_p / pulse.e_p)
     print(f"{gain_dB} dB gain")
-    if direction == -1:
-        # if n2_n was flipped to calculate the pump, flip it back before
-        # returning
-        n2_n = n2_n[::-1]
     return sim, p_out, gain_dB, n2_n, spl_Pp(sim.z)
 
 
 # %% ------------------------- parameter sweep --------------------------------
 length = 5
 start = 1e-3
-stop = 100e-3
-step = 1e-3
+stop = 50e-3
+step = 1e-3 / 2.0
 Pp = np.arange(start, stop + step, step)
 AMP = []
 for n, pp in enumerate(tqdm(Pp)):
-    res = amplify(pp, length, direction=-1)
+    res = amplify(pp, pp, length)
     amp = collections.namedtuple("amp", ["sim", "pulse", "g_dB", "n2_n", "Pp"])
     amp.sim = res[0]
     amp.pulse = res[1]
