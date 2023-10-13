@@ -129,7 +129,7 @@ def amplify(
 
     dz = model_fwd.estimate_step_size()
     sim_fwd = model_fwd.simulate(
-        z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+        z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
     )
     p_out_fwd = sim_fwd.pulse_out
 
@@ -153,7 +153,7 @@ def amplify(
 
         dz = model_bck.estimate_step_size()
         sim_bck = model_bck.simulate(
-            z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+            z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
         )
         p_out_bck = sim_bck.pulse_out
     else:
@@ -226,7 +226,7 @@ def amplify(
 
         dz = model_fwd.estimate_step_size()
         sim_fwd = model_fwd.simulate(
-            z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+            z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
         )
 
         if seed_bck:
@@ -249,7 +249,7 @@ def amplify(
 
             dz = model_bck.estimate_step_size()
             sim_bck = model_bck.simulate(
-                z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+                z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
             )
 
         rel_error_fwd = abs(
@@ -332,8 +332,8 @@ v_max = c / 1000e-9
 v0 = c / 1550e-9
 e_p = 10e-12
 t_fwhm_short = 250e-15
-t_fwhm_long = 5e-12
-min_time_window = 40e-12
+t_fwhm_long = 2e-12
+min_time_window = 20e-12
 pulse_short = pynlo.light.Pulse.Sech(
     n,
     v_min,
@@ -364,9 +364,9 @@ fiber.gamma = 4 / (W * km)
 # %% ------------- edfa -------------------------------------------------------
 amp = amplify(
     pulse_short,
-    pulse_long,
+    pulse_short,
     fiber,
-    50e-3,
+    0,
     50e-3,
     5,
     sigma_pump,

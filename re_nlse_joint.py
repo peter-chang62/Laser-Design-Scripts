@@ -129,7 +129,7 @@ def amplify(
 
     dz = model_fwd.estimate_step_size()
     sim_fwd = model_fwd.simulate(
-        z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+        z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
     )
     p_out_fwd = sim_fwd.pulse_out
 
@@ -153,7 +153,7 @@ def amplify(
 
         dz = model_bck.estimate_step_size()
         sim_bck = model_bck.simulate(
-            z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+            z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
         )
         p_out_bck = sim_bck.pulse_out
     else:
@@ -226,7 +226,7 @@ def amplify(
 
         dz = model_fwd.estimate_step_size()
         sim_fwd = model_fwd.simulate(
-            z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+            z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
         )
 
         if seed_bck:
@@ -249,7 +249,7 @@ def amplify(
 
             dz = model_bck.estimate_step_size()
             sim_bck = model_bck.simulate(
-                z_grid=length, dz=dz, n_records=int(np.round(length / dz))
+                z_grid=length, dz=dz, n_records=int(np.round(length / dz / 2.0))
             )
 
         rel_error_fwd = abs(
@@ -372,7 +372,7 @@ for n, pp in enumerate(tqdm(Pp)):
     AMP.append(amp)
 
 # %% ------------------------- look at results! -------------------------------
-g_dB = np.asarray([i.g_dB for i in AMP])
+g_dB = np.asarray([i.g_dB_fwd for i in AMP])
 
 fig, ax = plt.subplots(1, 1)
 ax.plot(Pp * 1e3, g_dB)
@@ -386,32 +386,32 @@ idx_min = g_dB.argmin()
 idx_half = abs(g_dB - g_dB.max() / 2).argmin()
 idx_max = g_dB.argmax()
 
-ax[0].plot(AMP[idx_min].sim.z, AMP[idx_min].n2_n)
+ax[0].plot(AMP[idx_min].sim_fwd.z, AMP[idx_min].n2_n)
 ax[0].set_ylabel("$\\mathrm{n_2/n_1}$")
 ax_2 = ax[0].twinx()
-ax_2.plot(AMP[idx_min].sim.z, AMP[idx_min].Pp * 1e3, "C1")
+ax_2.plot(AMP[idx_min].sim_fwd.z, AMP[idx_min].Pp * 1e3, "C1")
 ax_2.set_ylabel("pump power (mW)")
 ax[0].set_xlabel("position (m)")
 ax[0].set_ylim(ymax=1)
 
-ax[1].plot(AMP[idx_half].sim.z, AMP[idx_half].n2_n)
+ax[1].plot(AMP[idx_half].sim_fwd.z, AMP[idx_half].n2_n)
 ax[1].set_ylabel("$\\mathrm{n_2/n_1}$")
 ax_2 = ax[1].twinx()
-ax_2.plot(AMP[idx_half].sim.z, AMP[idx_half].Pp * 1e3, "C1")
+ax_2.plot(AMP[idx_half].sim_fwd.z, AMP[idx_half].Pp * 1e3, "C1")
 ax_2.set_ylabel("pump power (mW)")
 ax[1].set_xlabel("position (m)")
 ax[1].set_ylim(ymax=1)
 
-ax[2].plot(AMP[idx_max].sim.z, AMP[idx_max].n2_n)
+ax[2].plot(AMP[idx_max].sim_fwd.z, AMP[idx_max].n2_n)
 ax[2].set_ylabel("$\\mathrm{n_2/n_1}$")
 ax_2 = ax[2].twinx()
-ax_2.plot(AMP[idx_max].sim.z, AMP[idx_max].Pp * 1e3, "C1")
+ax_2.plot(AMP[idx_max].sim_fwd.z, AMP[idx_max].Pp * 1e3, "C1")
 ax_2.set_ylabel("pump power (mW)")
 ax[2].set_xlabel("position (m)")
 ax[2].set_ylim(ymax=1)
 
 fig.tight_layout()
 
-AMP[idx_min].sim.plot("wvl", num="minimum")
-AMP[idx_half].sim.plot("wvl", num="half")
-AMP[idx_max].sim.plot("wvl", num="max")
+AMP[idx_min].sim_fwd.plot("wvl", num="minimum")
+AMP[idx_half].sim_fwd.plot("wvl", num="half")
+AMP[idx_max].sim_fwd.plot("wvl", num="max")
