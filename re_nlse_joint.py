@@ -178,6 +178,10 @@ def amplify(Pp_0, length, direction=1, error=1e-3):
 
     gain_dB = 10 * np.log10(p_out.e_p / pulse.e_p)
     print(f"{gain_dB} dB gain")
+    if direction == -1:
+        # if n2_n was flipped to calculate the pump, flip it back before
+        # returning
+        n2_n = n2_n[::-1]
     return sim, p_out, gain_dB, n2_n, spl_Pp(sim.z)
 
 
