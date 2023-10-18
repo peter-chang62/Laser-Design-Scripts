@@ -171,13 +171,11 @@ class Mode(pynlo.media.Mode):
         sigma_a=None,
         sigma_e=None,
         tau=1e-3,
-        Pp_fwd=None,
-        direction=1.0,
+        Pp_fwd=0.0,
+        Pp_bck=0.0,
     ):
-        assert direction == 1 or direction == -1
         assert isinstance(p_v, (np.ndarray, pynlo.utility.misc.ArrayWrapper))
         assert p_v.size == v_grid.size
-        assert Pp_fwd is not None, "input a pump power!"
         assert sigma_e is not None, "input absorption cross-section at 980 nm"
         assert isinstance(sigma_a, np.ndarray), "provide absorption cross-section"
         assert isinstance(sigma_e, np.ndarray), "provide emission cross-section"
@@ -197,9 +195,10 @@ class Mode(pynlo.media.Mode):
         self.sigma_a = sigma_a
         self.sigma_e = sigma_e
         self.tau = tau
-        self._Pp = Pp_fwd
+        self._Pp_fwd = Pp_fwd
+        self._Pp_bck = Pp_bck
         self._z_start = z
-        self.direction = direction
+        self._rk45_Pp = None
 
         # alpha = lambda z, p_v: self.gain
         super().__init__(v_grid, beta, self.gain, g2, g2_inv, g3, rv_grid, r3, z)
@@ -235,16 +234,15 @@ class Mode(pynlo.media.Mode):
         return gain(self.n2_n, self.n_ion, self.overlap_s, self.sigma_a, self.sigma_e)
 
     def _dPp_dz(self, z, Pp):
-        return (
-            dpdz(self.n2_n, self.n_ion, self.overlap_p, self.sigma_p, 0, self.Pp)
-            * self.direction
-        )
+        deriv = dpdz(self.n2_n, self.n_ion, self.overlap_p, self.sigma_p, 0, Pp)
+        deriv[1] *= -1
+        return deriv
 
     def setup_rk45_Pp(self, dz):
         self._rk45_Pp = RK45(
             fun=self._dPp_dz,
             t0=self._z_start,
-            y0=self.Pp,
+            y0=np.array([self.Pp_fwd, self.Pp_bck]),
             t_bound=np.inf,
             max_step=dz,
         )
@@ -256,12 +254,23 @@ class Mode(pynlo.media.Mode):
 
     @property
     def Pp(self):
-        return self._Pp
+        return self.Pp_fwd + self.Pp_bck
+
+    @property
+    def Pp_fwd(self):
+        if self._rk45_Pp is not None:
+            self._Pp_fwd = self.rk45_Pp.y[0]
+        return self._Pp_fwd
+
+    @property
+    def Pp_bck(self):
+        if self._rk45_Pp is not None:
+            self._Pp_bck = self.rk45_Pp.y[1]
+        return self._Pp_bck
 
     def update_Pp(self):
         while self.rk45_Pp.t < self.z:
             self.rk45_Pp.step()
-            self._Pp = self.rk45_Pp.y
 
 
 class Model_EDF(pynlo.model.Model):
@@ -556,7 +565,12 @@ class EDFA(pynlo.materials.SilicaFiber):
         self.tau = tau
 
     def generate_model(
-        self, pulse, t_shock="auto", raman_on=True, Pp_fwd=0, direction=1.0
+        self,
+        pulse,
+        t_shock="auto",
+        raman_on=True,
+        Pp_fwd=0,
+        Pp_bck=0,
     ):
         """
         generate pynlo.model.UPE or NLSE instance
@@ -615,8 +629,8 @@ class EDFA(pynlo.materials.SilicaFiber):
             sigma_a=self.sigma_a,
             sigma_e=self.sigma_e,
             tau=self.tau,
-            Pp_fwd=np.array([Pp_fwd]),
-            direction=direction,
+            Pp_fwd=Pp_fwd,
+            Pp_bck=Pp_bck,
         )
 
         print("USING NLSE")

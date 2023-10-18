@@ -65,7 +65,7 @@ r_eff = 3.06e-6 / 2
 a_eff = np.pi * r_eff**2
 n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)  # dB/m absorption at 1530 nm
 
-gamma = 1
+gamma = 0
 
 fiber = EDFA(
     f_r=100e6,
@@ -86,7 +86,10 @@ fiber.gamma = gamma / (W * km)
 Pp_0 = 2
 
 model, dz = fiber.generate_model(
-    pulse, t_shock="auto", raman_on=False, Pp_fwd=Pp_0, direction=1
+    pulse,
+    t_shock="auto",
+    raman_on=False,
+    Pp_fwd=Pp_0,
 )
 length = 1.5
 sim_fwd = model.simulate(length, dz=dz, n_records=100)
@@ -101,8 +104,7 @@ def func(Pp_0):
         pulse,
         t_shock="auto",
         raman_on=False,
-        Pp_fwd=Pp_0,
-        direction=-1,
+        Pp_bck=Pp_0,
     )
     global sim_bck
     sim_bck = model.simulate(length, dz=dz, n_records=100)
