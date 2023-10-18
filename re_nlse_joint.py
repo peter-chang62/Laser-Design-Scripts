@@ -19,13 +19,13 @@ km = 1e3
 W = 1.0
 
 SimulationResult = collections.namedtuple(
-    "SimulationResult", ["pulse", "z", "a_t", "a_v", "Pp_fwd", "n2_n", "g_v"]
+    "SimulationResult", ["pulse", "z", "a_t", "a_v", "Pp", "n2_n", "g_v"]
 )
 
 
 def package_sim_output(simulate):
     def wrapper(self, *args, **kwargs):
-        (pulse_out, z, a_t, a_v, Pp_fwd, n2_n, g_v) = simulate(self, *args, **kwargs)
+        (pulse_out, z, a_t, a_v, Pp, n2_n, g_v) = simulate(self, *args, **kwargs)
         model = self
 
         class result:
@@ -38,7 +38,7 @@ def package_sim_output(simulate):
                 self.p_v = abs(a_v) ** 2
                 self.phi_v = np.angle(a_v)
                 self.phi_t = np.angle(a_t)
-                self.Pp_fwd = Pp_fwd
+                self.Pp = Pp
                 self.n2_n = n2_n
                 self.model = model
                 self.g_v = g_v
@@ -172,7 +172,7 @@ class Mode(pynlo.media.Mode):
         sigma_e=None,
         tau=1e-3,
         Pp_fwd=0.0,
-        Pp_bck=0.0
+        Pp_bck=0.0,
     ):
         assert isinstance(p_v, (np.ndarray, pynlo.utility.misc.ArrayWrapper))
         assert p_v.size == v_grid.size
@@ -196,7 +196,9 @@ class Mode(pynlo.media.Mode):
         self.sigma_e = sigma_e
         self.tau = tau
         self._Pp_fwd = Pp_fwd
+        self._Pp_bck = Pp_bck
         self._z_start = z
+        self._rk45_Pp = None
 
         # alpha = lambda z, p_v: self.gain
         super().__init__(v_grid, beta, self.gain, g2, g2_inv, g3, rv_grid, r3, z)
@@ -211,6 +213,7 @@ class Mode(pynlo.media.Mode):
 
     @property
     def n2_n(self):
+        # p_v and Pp are the only changing variables that can change n2/n
         sum_a = self.f_r * self.p_v * self.sigma_a / (h * self.v_grid * self.a_eff)
         sum_e = self.f_r * self.p_v * self.sigma_e / (h * self.v_grid * self.a_eff)
         sum_a = np.sum(sum_a * self.dv)
@@ -220,7 +223,7 @@ class Mode(pynlo.media.Mode):
             self.overlap_s,
             self.a_eff,
             self.nu_p,
-            self.Pp_fwd,
+            self.Pp,
             self.sigma_p,
             sum_a,
             sum_e,
@@ -232,13 +235,15 @@ class Mode(pynlo.media.Mode):
         return gain(self.n2_n, self.n_ion, self.overlap_s, self.sigma_a, self.sigma_e)
 
     def _dPp_dz(self, z, Pp):
-        return dpdz(self.n2_n, self.n_ion, self.overlap_p, self.sigma_p, 0, self.Pp_fwd)
+        deriv = dpdz(self.n2_n, self.n_ion, self.overlap_p, self.sigma_p, 0, self.Pp)
+        deriv[1] *= -1
+        return deriv
 
     def setup_rk45_Pp(self, dz):
         self._rk45_Pp = RK45(
             fun=self._dPp_dz,
             t0=self._z_start,
-            y0=self.Pp_fwd,
+            y0=np.array([self.Pp_fwd, self.Pp_bck]),
             t_bound=np.inf,
             max_step=dz,
         )
@@ -250,12 +255,23 @@ class Mode(pynlo.media.Mode):
 
     @property
     def Pp_fwd(self):
+        if self._rk45_Pp is not None:
+            self._Pp_fwd = self.rk45_Pp.y[0]
         return self._Pp_fwd
+
+    @property
+    def Pp_bck(self):
+        if self._rk45_Pp is not None:
+            self._Pp_bck = self.rk45_Pp.y[1]
+        return self._Pp_bck
+
+    @property
+    def Pp(self):
+        return self.Pp_fwd + self.Pp_bck
 
     def update_Pp(self):
         while self.rk45_Pp.t < self.z:
             self.rk45_Pp.step()
-            self._Pp_fwd = self.rk45_Pp.y
 
 
 class Model_EDF(pynlo.model.Model):
@@ -438,8 +454,8 @@ class Model_EDF(pynlo.model.Model):
         a_t_record[0, :] = pulse_out.a_t
 
         # Pump power
-        Pp_fwd = np.empty(n_records, dtype=float)
-        Pp_fwd[0] = self.mode.Pp_fwd
+        Pp = np.empty(n_records, dtype=float)
+        Pp[0] = self.mode.Pp
 
         # inversion
         n2_n = np.empty(n_records, dtype=float)
@@ -476,7 +492,7 @@ class Model_EDF(pynlo.model.Model):
                 idx = z_record[z]
                 a_t_record[idx, :] = pulse_out.a_t
                 a_v_record[idx, :] = pulse_out.a_v
-                Pp_fwd[idx] = self.mode.Pp_fwd
+                Pp[idx] = self.mode.Pp
                 n2_n[idx] = self.mode.n2_n
                 g_v[idx, :] = self.mode.gain(None, None)
 
@@ -495,7 +511,7 @@ class Model_EDF(pynlo.model.Model):
             z=np.fromiter(z_record.keys(), dtype=float),
             a_t=a_t_record,
             a_v=a_v_record,
-            Pp_fwd=Pp_fwd,
+            Pp=Pp,
             n2_n=n2_n,
             g_v=g_v,
         )
@@ -555,6 +571,7 @@ class EDFA(pynlo.materials.SilicaFiber):
         t_shock="auto",
         raman_on=True,
         Pp_fwd=0,
+        Pp_bck=0,
     ):
         """
         generate pynlo.model.UPE or NLSE instance
@@ -613,7 +630,8 @@ class EDFA(pynlo.materials.SilicaFiber):
             sigma_a=self.sigma_a,
             sigma_e=self.sigma_e,
             tau=self.tau,
-            Pp_fwd=np.array([Pp_fwd]),
+            Pp_fwd=Pp_fwd,
+            Pp_bck=Pp_bck,
         )
 
         print("USING NLSE")
