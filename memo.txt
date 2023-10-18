@@ -105,3 +105,11 @@ The calculation for the ion doping is actually pretty straightforward, look at s
 However, the corresponding amplification curve doesn't look right! I'm not sure why...
 
 What I can think of is that you haven't taken into account ASE and ESA. Again, for ASE, I can't see why this would be a dominant process unless you seed with very little power. I think ESA is probably what's responsible? 
+
+----------------------------------------
+2023-10-18T12:31
+I wrote the code to do forward and backward pumping, if you provide a direction=1.0 or direction=-1.0, which works just as a multiplier to the output of dpdz. then I modified the code to propagate both a forward and backward pump, and i got some slightly different results when i tested conditions that were the same as before (e.g. only forward pumping). weird
+
+Okay, I reverted back to where I was just using a direction multiplier and tried again from there. I decided to do this rather than debug. To validate, I ran two python consoles: one running the old code with the direction multiplier, and one running the new code which propagates both the forward and backward pump. I had the two console execute scripts testing the same conditions: only forward pumping and only backward pumping. The results are the same :) Happy now???
+
+before, there were some differences in the spectrum and i think the output power. definitely the spectrum. anyways. you can debug that, or just go back to the point before you screwed up, try again and see if the screw up is still there. sometimes that's more effective than debugging you know. i am not about to check out old reverts to figure out what went wrong. point is it works now!!!!!!

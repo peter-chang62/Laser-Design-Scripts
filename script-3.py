@@ -30,7 +30,9 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 )
 
 # %% -------------- load dispersion coefficients ------------------------------
-frame = pd.read_excel("nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx")
+frame = pd.read_excel(
+    "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+)
 gvd = frame.to_numpy()[:, :2][1:].astype(float)
 
 wl = gvd[:, 0] * 1e-9
@@ -65,7 +67,7 @@ r_eff = 3.06e-6 / 2
 a_eff = np.pi * r_eff**2
 n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)  # dB/m absorption at 1530 nm
 
-gamma = 0
+gamma = 1
 
 fiber = EDFA(
     f_r=100e6,
@@ -83,7 +85,7 @@ fiber.gamma = gamma / (W * km)
 
 
 # %% ------------- forward pumped EDFA ----------------------------------------
-Pp_0 = 2
+Pp_0 = 200e-3
 
 model, dz = fiber.generate_model(
     pulse,
@@ -94,25 +96,43 @@ model, dz = fiber.generate_model(
 length = 1.5
 sim_fwd = model.simulate(length, dz=dz, n_records=100)
 
+
 # %% ------------- backward pumped EDFA ---------------------------------------
-target = Pp_0
-
-
-def func(Pp_0):
-    (Pp_0,) = Pp_0
+def func(Pp_bck):
+    (Pp_bck,) = Pp_bck
     model, dz = fiber.generate_model(
         pulse,
         t_shock="auto",
         raman_on=False,
-        Pp_bck=Pp_0,
+        Pp_bck=Pp_bck,
     )
     global sim_bck
     sim_bck = model.simulate(length, dz=dz, n_records=100)
-    return (sim_bck.Pp[-1] - target) ** 2
+    return abs(sim_bck.Pp[-1] - Pp_0) ** 2
 
 
-guess = sim_fwd.Pp[-1]
-res = minimize(func, np.array([guess]), bounds=Bounds(lb=guess / 10, ub=guess * 10))
+guess = 1e-6
+res = minimize(func, np.array([guess]), bounds=Bounds(lb=0, ub=np.inf), tol=1e-7)
+
+
+# %% ------------- forward and backward pumped EDFA ---------------------------
+def func(Pp_bck):
+    (Pp_bck,) = Pp_bck
+    model, dz = fiber.generate_model(
+        pulse,
+        t_shock="auto",
+        raman_on=False,
+        Pp_fwd=Pp_0,
+        Pp_bck=Pp_bck,
+    )
+    global sim_both
+    sim_both = model.simulate(length, dz=dz, n_records=100)
+    return abs(sim_both.Pp[-1] - Pp_0) ** 2
+
+
+guess = 1e-6
+res_both = minimize(func, np.array([guess]), bounds=Bounds(lb=0, ub=np.inf), tol=1e-7)
+
 
 # %% ------------- look at results! -------------------------------------------
 sim = sim_fwd
@@ -137,6 +157,7 @@ fig.tight_layout()
 
 sim.plot("wvl", num="forward pumping")
 
+# %% -----
 sim = sim_bck
 fig, ax = plt.subplots(1, 1)
 ax.plot(sim.z, np.sum(sim.p_v * pulse.dv, axis=1) * 100e6, label="signal", linewidth=2)
@@ -154,7 +175,30 @@ img = ax.pcolormesh(pulse.wl_grid * 1e9, sim.z, sim.g_v, cmap="jet")
 ax.set_xlabel("wavelength (nm)")
 ax.set_ylabel("position (m)")
 fig.colorbar(img)
-ax.set_title("gain")
+ax.set_title("gain backward pumping")
 fig.tight_layout()
 
 sim.plot("wvl", num="backward pumping")
+
+# %% -----
+sim = sim_both
+fig, ax = plt.subplots(1, 1)
+ax.plot(sim.z, np.sum(sim.p_v * pulse.dv, axis=1) * 100e6, label="signal", linewidth=2)
+ax.plot(sim.z, sim.Pp, label="pump", linewidth=2)
+ax2 = ax.twinx()
+ax2.plot(sim.z, sim.n2_n, color="C2", linewidth=2, linestyle="--")
+ax.set_ylabel("power (W)")
+ax.set_xlabel("position (m)")
+ax.set_title("broadband amplification with PyNLO")
+ax.grid()
+fig.tight_layout()
+
+fig, ax = plt.subplots(1, 1)
+img = ax.pcolormesh(pulse.wl_grid * 1e9, sim.z, sim.g_v, cmap="jet")
+ax.set_xlabel("wavelength (nm)")
+ax.set_ylabel("position (m)")
+fig.colorbar(img)
+ax.set_title("gain forward and backward pumping")
+fig.tight_layout()
+
+sim.plot("wvl", num="forwad and backward pumping")
