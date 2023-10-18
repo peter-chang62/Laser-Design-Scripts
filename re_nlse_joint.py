@@ -19,13 +19,13 @@ km = 1e3
 W = 1.0
 
 SimulationResult = collections.namedtuple(
-    "SimulationResult", ["pulse", "z", "a_t", "a_v", "Pp", "n2_n", "g_v"]
+    "SimulationResult", ["pulse", "z", "a_t", "a_v", "Pp_fwd", "n2_n", "g_v"]
 )
 
 
 def package_sim_output(simulate):
     def wrapper(self, *args, **kwargs):
-        (pulse_out, z, a_t, a_v, Pp, n2_n, g_v) = simulate(self, *args, **kwargs)
+        (pulse_out, z, a_t, a_v, Pp_fwd, n2_n, g_v) = simulate(self, *args, **kwargs)
         model = self
 
         class result:
@@ -38,7 +38,7 @@ def package_sim_output(simulate):
                 self.p_v = abs(a_v) ** 2
                 self.phi_v = np.angle(a_v)
                 self.phi_t = np.angle(a_t)
-                self.Pp = Pp
+                self.Pp_fwd = Pp_fwd
                 self.n2_n = n2_n
                 self.model = model
                 self.g_v = g_v
@@ -171,13 +171,11 @@ class Mode(pynlo.media.Mode):
         sigma_a=None,
         sigma_e=None,
         tau=1e-3,
-        Pp_fwd=None,
-        direction=1.0,
+        Pp_fwd=0.0,
+        Pp_bck=0.0
     ):
-        assert direction == 1 or direction == -1
         assert isinstance(p_v, (np.ndarray, pynlo.utility.misc.ArrayWrapper))
         assert p_v.size == v_grid.size
-        assert Pp_fwd is not None, "input a pump power!"
         assert sigma_e is not None, "input absorption cross-section at 980 nm"
         assert isinstance(sigma_a, np.ndarray), "provide absorption cross-section"
         assert isinstance(sigma_e, np.ndarray), "provide emission cross-section"
@@ -197,9 +195,8 @@ class Mode(pynlo.media.Mode):
         self.sigma_a = sigma_a
         self.sigma_e = sigma_e
         self.tau = tau
-        self._Pp = Pp_fwd
+        self._Pp_fwd = Pp_fwd
         self._z_start = z
-        self.direction = direction
 
         # alpha = lambda z, p_v: self.gain
         super().__init__(v_grid, beta, self.gain, g2, g2_inv, g3, rv_grid, r3, z)
@@ -223,7 +220,7 @@ class Mode(pynlo.media.Mode):
             self.overlap_s,
             self.a_eff,
             self.nu_p,
-            self.Pp,
+            self.Pp_fwd,
             self.sigma_p,
             sum_a,
             sum_e,
@@ -235,16 +232,13 @@ class Mode(pynlo.media.Mode):
         return gain(self.n2_n, self.n_ion, self.overlap_s, self.sigma_a, self.sigma_e)
 
     def _dPp_dz(self, z, Pp):
-        return (
-            dpdz(self.n2_n, self.n_ion, self.overlap_p, self.sigma_p, 0, self.Pp)
-            * self.direction
-        )
+        return dpdz(self.n2_n, self.n_ion, self.overlap_p, self.sigma_p, 0, self.Pp_fwd)
 
     def setup_rk45_Pp(self, dz):
         self._rk45_Pp = RK45(
             fun=self._dPp_dz,
             t0=self._z_start,
-            y0=self.Pp,
+            y0=self.Pp_fwd,
             t_bound=np.inf,
             max_step=dz,
         )
@@ -255,13 +249,13 @@ class Mode(pynlo.media.Mode):
         return self._rk45_Pp
 
     @property
-    def Pp(self):
-        return self._Pp
+    def Pp_fwd(self):
+        return self._Pp_fwd
 
     def update_Pp(self):
         while self.rk45_Pp.t < self.z:
             self.rk45_Pp.step()
-            self._Pp = self.rk45_Pp.y
+            self._Pp_fwd = self.rk45_Pp.y
 
 
 class Model_EDF(pynlo.model.Model):
@@ -444,8 +438,8 @@ class Model_EDF(pynlo.model.Model):
         a_t_record[0, :] = pulse_out.a_t
 
         # Pump power
-        Pp = np.empty(n_records, dtype=float)
-        Pp[0] = self.mode.Pp
+        Pp_fwd = np.empty(n_records, dtype=float)
+        Pp_fwd[0] = self.mode.Pp_fwd
 
         # inversion
         n2_n = np.empty(n_records, dtype=float)
@@ -482,7 +476,7 @@ class Model_EDF(pynlo.model.Model):
                 idx = z_record[z]
                 a_t_record[idx, :] = pulse_out.a_t
                 a_v_record[idx, :] = pulse_out.a_v
-                Pp[idx] = self.mode.Pp
+                Pp_fwd[idx] = self.mode.Pp_fwd
                 n2_n[idx] = self.mode.n2_n
                 g_v[idx, :] = self.mode.gain(None, None)
 
@@ -501,7 +495,7 @@ class Model_EDF(pynlo.model.Model):
             z=np.fromiter(z_record.keys(), dtype=float),
             a_t=a_t_record,
             a_v=a_v_record,
-            Pp=Pp,
+            Pp_fwd=Pp_fwd,
             n2_n=n2_n,
             g_v=g_v,
         )
@@ -556,7 +550,11 @@ class EDFA(pynlo.materials.SilicaFiber):
         self.tau = tau
 
     def generate_model(
-        self, pulse, t_shock="auto", raman_on=True, Pp_fwd=0, direction=1.0
+        self,
+        pulse,
+        t_shock="auto",
+        raman_on=True,
+        Pp_fwd=0,
     ):
         """
         generate pynlo.model.UPE or NLSE instance
@@ -616,7 +614,6 @@ class EDFA(pynlo.materials.SilicaFiber):
             sigma_e=self.sigma_e,
             tau=self.tau,
             Pp_fwd=np.array([Pp_fwd]),
-            direction=direction,
         )
 
         print("USING NLSE")
