@@ -67,4 +67,41 @@ Notes:
 2023-10-13T14:23:
 I now have forward and backward pumping or both modeled. But only for forward seeding. I now want to allow counter-propagating pulses. So far I have the models running separate of each other. Now I need to make it so that the model also adds the pulse energy of the opposite propagating direction from the previous run.
 
-It seems that whichever model gets hit with the pulse energy from the previous run of the propagation in the opposite direction stabilizes to an overall lower gain.
+----------------------------------------
+2023-10-14T16:14
+Optizone email
+
+Hi Ana,
+
+Thanks, I think just the updated quote would be great! We are working out the dispersion management for a laser cavity. As far as the fiber components are concerned, they are good so long as they have fairly low insertion loss. And I think the shorter fused splitter lengths would help with the short splices. 
+
+We've about run out of splitters and phase biases for trying new lasers. We thought 10 of each may be too many for prototyping, so I figured I would just order 5. 
+
+Thank you,
+Peter
+
+Nlight email
+    
+    - thank you very much, the gvd curves are very useful to have!
+
+    - Tsung-Han, cc'ed here, has kindly given us some of the fiber that we asked them to quote us (the ER 110 4/125 and ER 80 8/125). We wanted to purchase more so we don't have to brorrow his. 
+
+    - However, Tsung-han has had some difficulty using this fiber to achieve high enough gain while balancing dispersion in a figure-9 laser cavity at our target 200 MHz.
+
+    - can we reduce the quote to the minimum quantity of 5m? Sorry for the reduction, but we just want a "prototype" quantity for figuring things out. 
+    
+    - can we get the dispersion curve for ER 80 4/125? This is the active fiber he uses to make the lower rep-rate 100 MHz oscillators that we know work very well. 
+
+    - I'm able to simulate the rate equation and nonlinear pulse propagation, but am missing a few parameters
+
+    - besides the simulated dispersion curves are they able to provide the doping info?: curves for absorption and emission cross-section (I'm guessing similar to the attached curve), ER 3+ doping concentration (# / m^-3), and excited state lifetime (I'm guessing about 1 ms?). I can pull default values from elsewhere but would like to simulate as close to the actual fiber as possible. 
+
+2023-10-16T13:32
+
+I think I may have had a misunderstanding! The absorption and emission cross-section is kind of per ion! So, it doesn't vary with dopiong concentration (at least not in an ideal world?) I think the lifetime might change because the closer packed they are, maybe they can start to interact. 
+
+The calculation for the ion doping is actually pretty straightforward, look at script-3.py, and you can confirm it with simulation (I mean it's just an exponential decay anyways). 
+
+However, the corresponding amplification curve doesn't look right! I'm not sure why...
+
+What I can think of is that you haven't taken into account ASE and ESA. Again, for ASE, I can't see why this would be a dominant process unless you seed with very little power. I think ESA is probably what's responsible? 
