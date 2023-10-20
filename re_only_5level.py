@@ -142,9 +142,9 @@ def func(
 
 # %% -------------------------------------------------------------------------
 f_r = 100e6
-Pp_0 = 2.0
+Pp_0 = 1.8
 Pv_0 = pulse.p_v.copy() * pulse.dv * f_r
-length = 2
+length = 4
 
 X_0 = np.hstack([Pp_0, Pv_0])
 z = np.linspace(0, length, 1000)
