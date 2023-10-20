@@ -15,21 +15,28 @@ um = 1e-6
 km = 1e3
 W = 1.0
 
-# %% -------------- load absorption coefficients ------------------------------
-sigma = np.genfromtxt("Ansys/er_cross_section_fig_6_1.txt")
-a = sigma[3:][:, :2]
-e = sigma[3:][:, [0, 2]]
+plot = "wvl"
 
-sigma_p = sigma[0, 1]
+# %% -------------- load absorption coefficients from NLight ------------------
+sigma = pd.read_excel("NLight_provided/Erbium Cross Section - nlight_pump+signal.xlsx")
+sigma = sigma.to_numpy()[1:].astype(float)[:, [0, 2, 3]]
+a = sigma[:, :2]
+e = sigma[:, [0, 2]]
 
 spl_sigma_a = InterpolatedUnivariateSpline(
     c / a[:, 0][::-1], a[:, 1][::-1], ext="zeros"
 )
+
 spl_sigma_e = InterpolatedUnivariateSpline(
     c / e[:, 0][::-1], e[:, 1][::-1], ext="zeros"
 )
+sigma_p = spl_sigma_a(c / 980e-9)
+
 
 # %% -------------- load dispersion coefficients ------------------------------
+# frame = pd.read_excel(
+#     "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
+# )
 frame = pd.read_excel(
     "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
 )
@@ -62,7 +69,7 @@ pulse = pynlo.light.Pulse.Sech(
 
 
 # %% ------------- EDF --------------------------------------------------------
-tau = 10e-3
+tau = 9e-3
 r_eff = 3.06e-6 / 2
 a_eff = np.pi * r_eff**2
 n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)  # dB/m absorption at 1530 nm
@@ -85,7 +92,7 @@ fiber.gamma = gamma / (W * km)
 
 
 # %% ------------- forward pumped EDFA ----------------------------------------
-Pp_0 = 200e-3
+Pp_0 = 850e-3
 
 model, dz = fiber.generate_model(
     pulse,
@@ -94,7 +101,7 @@ model, dz = fiber.generate_model(
     Pp_fwd=Pp_0,
 )
 length = 1.5
-sim_fwd = model.simulate(length, dz=dz, n_records=100)
+sim_fwd = model.simulate(length, dz=dz, n_records=100, plot=plot)
 
 
 # %% ------------- backward pumped EDFA ---------------------------------------
@@ -107,7 +114,7 @@ def func(Pp_bck):
         Pp_bck=Pp_bck,
     )
     global sim_bck
-    sim_bck = model.simulate(length, dz=dz, n_records=100)
+    sim_bck = model.simulate(length, dz=dz, n_records=100, plot=plot)
     return abs(sim_bck.Pp[-1] - Pp_0) ** 2
 
 
@@ -126,7 +133,7 @@ def func(Pp_bck):
         Pp_bck=Pp_bck,
     )
     global sim_both
-    sim_both = model.simulate(length, dz=dz, n_records=100)
+    sim_both = model.simulate(length, dz=dz, n_records=100, plot=plot)
     return abs(sim_both.Pp[-1] - Pp_0) ** 2
 
 

@@ -11,6 +11,7 @@ from scipy.constants import c, h
 import pynlo
 from scipy.integrate import odeint
 import clipboard
+import pandas as pd
 
 
 ps = 1e-12
@@ -86,19 +87,20 @@ def gain(n2_n, n, overlap, sigma_a, sigma_e):
     return emission - absorption
 
 
-# %% -------------- load absorption coefficients ------------------------------
-sigma = np.genfromtxt("Ansys/er_cross_section_fig_6_1.txt")
-a = sigma[3:][:, :2]
-e = sigma[3:][:, [0, 2]]
-
-sigma_p = sigma[0, 1]
+# %% -------------- load absorption coefficients from NLight ------------------
+sigma = pd.read_excel("NLight_provided/Erbium Cross Section - nlight_pump+signal.xlsx")
+sigma = sigma.to_numpy()[1:].astype(float)[:, [0, 2, 3]]
+a = sigma[:, :2]
+e = sigma[:, [0, 2]]
 
 spl_sigma_a = InterpolatedUnivariateSpline(
     c / a[:, 0][::-1], a[:, 1][::-1], ext="zeros"
 )
+
 spl_sigma_e = InterpolatedUnivariateSpline(
     c / e[:, 0][::-1], e[:, 1][::-1], ext="zeros"
 )
+sigma_p = spl_sigma_a(c / 980e-9)
 
 # %% ------------- pulse ------------------------------------------------------
 n = 256

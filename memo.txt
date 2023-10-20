@@ -113,3 +113,29 @@ I wrote the code to do forward and backward pumping, if you provide a direction=
 Okay, I reverted back to where I was just using a direction multiplier and tried again from there. I decided to do this rather than debug. To validate, I ran two python consoles: one running the old code with the direction multiplier, and one running the new code which propagates both the forward and backward pump. I had the two console execute scripts testing the same conditions: only forward pumping and only backward pumping. The results are the same :) Happy now???
 
 before, there were some differences in the spectrum and i think the output power. definitely the spectrum. anyways. you can debug that, or just go back to the point before you screwed up, try again and see if the screw up is still there. sometimes that's more effective than debugging you know. i am not about to check out old reverts to figure out what went wrong. point is it works now!!!!!!
+
+----------------------------------------
+2023-10-18T13:59
+
+Hi Peter and Tsung-Han,
+ 
+Thank you both for reaching out! I still have also Tsung-Han’s email on my todo list for responding. I will try to do so soon (= next couple of days).
+ 
+Attached you find the simulated dispersion curve of the Er80-4/125-HD-PM fiber. Please note that the actual dispersion in your fiber may slightly deviate depending on the core diameter. But I expect it to be within about +/-2ps/(nm*km) of the listed values.
+ 
+Attached you find the absorption and emission cross section data representative for our Er doped fibers.
+ 
+The doping concentration is about 56e24 ions/ m^3 with a core diameter of 3.0um.
+ 
+In Er doped fibers the upper state lifetime is closer to about 9ms.
+ 
+As stated in the description, the unit price of line #1 of each quote is also valid for 5m order length. Also the 20% discount applies to that unit price at 5m. Or do you prefer a specific quotation that has the 5m quote only?
+ 
+Best regards,
+Steffen
+
+----------------------------------------
+2023-10-18T14:04
+I don't think you will recover the power conversion efficiency until you account for ASE. I think it's true that ASE doesn't contribute a significant portion of the output light, but it can eat out amplifier gain somewhere in the stretch of gain fiber. So, even if the output ASE is negligible compared to the output signal power, it needs to be incorporated to accurately reproduce the experimental amplifier gain!
+
+Actually, I'm not sure...
