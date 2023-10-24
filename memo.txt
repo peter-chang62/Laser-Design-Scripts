@@ -139,3 +139,12 @@ Steffen
 I don't think you will recover the power conversion efficiency until you account for ASE. I think it's true that ASE doesn't contribute a significant portion of the output light, but it can eat out amplifier gain somewhere in the stretch of gain fiber. So, even if the output ASE is negligible compared to the output signal power, it needs to be incorporated to accurately reproduce the experimental amplifier gain!
 
 Actually, I'm not sure...
+
+----------------------------------------
+2023-10-24T11:37
+
+    - current parameters are: gamma edfa = 10, D_l = -3 -> -.5, straight section is 8 cm long, pum power = 40 mW
+
+    - all of my spectra are peaked on the long wavelength side, whereas I recall all of the experimental stuff was peaked at the short wavelength side... weird. Maybe it has to do with cavity loss? That could be the next thing to try. 
+
+do one more read through to look for mistakes!
