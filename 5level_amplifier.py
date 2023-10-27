@@ -152,12 +152,12 @@ edf = EDF(
     sigma_e=sigma_e,
 )
 edf.set_beta_from_beta_n(v0, polyfit)
-edf.gamma = 1 / (W * km)
+edf.gamma = 6.5 / (W * km)
 
 # %% ------ quick test
-model_fwd, sim_fwd = amplify(edf, pulse, 3, 1, 0)
-model_bck, sim_bck = amplify(edf, pulse, 3, 0, 1)
-model_both, sim_both = amplify(edf, pulse, 3, 1, 1)
+model_fwd, sim_fwd = amplify(edf, pulse, 1.5, 1, 0)
+model_bck, sim_bck = amplify(edf, pulse, 1.5, 0, 1)
+model_both, sim_both = amplify(edf, pulse, 1.5, 1, 1)
 
 # %% ------------- look at results! -------------------------------------------
 for sim, num in zip([sim_fwd, sim_bck, sim_both], ["fwd", "bck", "both"]):

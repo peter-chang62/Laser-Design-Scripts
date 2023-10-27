@@ -148,3 +148,25 @@ Actually, I'm not sure...
     - all of my spectra are peaked on the long wavelength side, whereas I recall all of the experimental stuff was peaked at the short wavelength side... weird. Maybe it has to do with cavity loss? That could be the next thing to try. 
 
 do one more read through to look for mistakes!
+
+----------------------------------------
+2023-10-25T16:16
+
+You can do a massive parameter space search, but I'm not very inclined. Here are some notes for the 200 MHz figure 9 cavity:
+
+Notes to take from stepping parameters:
+    - the lower the loss, the more anomalous the cavity needs to be to keep the same straight section
+    - the longer the straight section the more anomalous the cavity needs to be
+    - If quite anomalous, the more "slammed" the spectrum is to the 1600 nm side, which can be strongly peaked. At some point, it can't stabilize. Closer to ZDW the spectrum looks better, but the instability becomes worse below some D value, below which the pulse cannot stabilize
+    - this means that some loss is actually better!
+        - because otherwise you need to be very anomalous, and the very anomalous spectrum doesn't look good. 
+        - 0.7 - 1 dB loss is good, I think that's typical. With round trip dispersion between 6 - 7, and 
+    - too much loss means the cavity needs to operate too close to ZDW, at some point it never stabilizes.
+
+    - if you assume say 0.8 dB splicing and insertion loss across all devices (excluding pm1550 -> pm1550), then the maximum straight section length falls at around 15 cm (preferably less). A number it seems to like is 11 cm with D=6 round trip.
+
+    - not totally sure what the effect of changing nonlinearity is. It seems like gamma_edf can take any value between 4 - 9, and it will still mode-lock but at a different threshold and with a different spectrum.
+
+    - it claims that it can mode-lock with 28 cm of edf.
+
+    - I get that you can use the ER 80... but you have to get 500 mW into the gain fiber, whereas with ER 110 you can be at 300 mW in the gain fiber. With loss taken into account, that means you need to output close to 800 mW, which I think might be more than what I recall measuring with the current driver turned to full. So in other words, the ER 80 is really pushing it, possibly not doable?

@@ -40,6 +40,7 @@ SimulationResult = collections.namedtuple(
         "a_t",
         "a_v",
         "Pp",
+        "n1_n",
         "n2_n",
         "n3_n",
         "n4_n",
@@ -51,7 +52,7 @@ SimulationResult = collections.namedtuple(
 
 def package_sim_output(simulate):
     def wrapper(self, *args, **kwargs):
-        (pulse_out, z, a_t, a_v, Pp, n2_n, n3_n, n4_n, n5_n, g_v) = simulate(
+        (pulse_out, z, a_t, a_v, Pp, n1_n, n2_n, n3_n, n4_n, n5_n, g_v) = simulate(
             self, *args, **kwargs
         )
         model = self
@@ -67,6 +68,7 @@ def package_sim_output(simulate):
                 self.phi_v = np.angle(a_v)
                 self.phi_t = np.angle(a_t)
                 self.Pp = Pp
+                self.n1_n = n1_n
                 self.n2_n = n2_n
                 self.n3_n = n3_n
                 self.n4_n = n4_n
@@ -144,6 +146,8 @@ class Mode(pynlo.media.Mode):
         tau_32=tau_32,
         tau_43=tau_43,
         tau_54=tau_54,
+        p_v_prev=None,
+        Pp_prev=None,
     ):
         assert isinstance(p_v, (np.ndarray, pynlo.utility.misc.ArrayWrapper))
         assert p_v.size == v_grid.size
@@ -178,12 +182,32 @@ class Mode(pynlo.media.Mode):
         self._tau_43 = tau_43
         self._tau_54 = tau_54
 
+        if p_v_prev is None:
+            p_v_prev = lambda z: 0
+        if Pp_prev is None:
+            Pp_prev = lambda z: 0
+        assert callable(p_v_prev)
+        assert callable(Pp_prev)
+        self.p_v_prev = p_v_prev
+        self.Pp_prev = Pp_prev
+
         # alpha = lambda z, p_v: self.gain
         super().__init__(v_grid, beta, self.gain, g2, g2_inv, g3, rv_grid, r3, z)
         # self.v_grid is not defined until after the __init__ call
         # __init__ sets _p_v to None, so assign this after the __init__ call
         self.p_v = p_v
         self.dv = self.v_grid[1] - self.v_grid[0]
+
+    @pynlo.utility.misc.SettableArrayProperty
+    def p_v(self, key=...):
+        return (self._p_v + self.p_v_prev(self.z))[key]
+
+    @p_v.setter
+    def p_v(self, p_v, key=...):
+        if self._p_v is None:
+            self._p_v = p_v
+        else:
+            self._p_v[key] = p_v
 
     @property
     def tau_21(self):
@@ -406,7 +430,7 @@ class Mode(pynlo.media.Mode):
 
     @property
     def Pp(self):
-        return self.Pp_fwd + self.Pp_bck
+        return self.Pp_fwd + self.Pp_bck + self.Pp_prev(self.z)
 
     @property
     def Pp_fwd(self):
@@ -606,9 +630,11 @@ class Model_EDF(pynlo.model.Model):
 
         # Pump power
         Pp = np.empty(n_records, dtype=float)
-        Pp[0] = self.mode.Pp
+        Pp[0] = self.mode.Pp_fwd + self.mode.Pp_bck
 
         # inversion
+        n1_n = np.empty(n_records, dtype=float)
+        n1_n[0] = self.mode.n1 / self.mode.n_ion
         n2_n = np.empty(n_records, dtype=float)
         n2_n[0] = self.mode.n2 / self.mode.n_ion
         n3_n = np.empty(n_records, dtype=float)
@@ -649,7 +675,8 @@ class Model_EDF(pynlo.model.Model):
                 idx = z_record[z]
                 a_t_record[idx, :] = pulse_out.a_t
                 a_v_record[idx, :] = pulse_out.a_v
-                Pp[idx] = self.mode.Pp
+                Pp[idx] = self.mode.Pp_fwd + self.mode.Pp_bck
+                n1_n[idx] = self.mode.n1 / self.mode.n_ion
                 n2_n[idx] = self.mode.n2 / self.mode.n_ion
                 n3_n[idx] = self.mode.n3 / self.mode.n_ion
                 n4_n[idx] = self.mode.n4 / self.mode.n_ion
@@ -672,6 +699,7 @@ class Model_EDF(pynlo.model.Model):
             a_t=a_t_record,
             a_v=a_v_record,
             Pp=Pp,
+            n1_n=n1_n,
             n2_n=n2_n,
             n3_n=n3_n,
             n4_n=n4_n,
@@ -803,6 +831,8 @@ class EDF(pynlo.materials.SilicaFiber):
         raman_on=True,
         Pp_fwd=0,
         Pp_bck=0,
+        p_v_prev=None,
+        Pp_prev=None,
     ):
         """
         generate pynlo.model.UPE or NLSE instance
@@ -869,6 +899,8 @@ class EDF(pynlo.materials.SilicaFiber):
             tau_32=self.tau_32,
             tau_43=self.tau_43,
             tau_54=self.tau_54,
+            p_v_prev=p_v_prev,
+            Pp_prev=Pp_prev,
         )
 
         print("USING NLSE")

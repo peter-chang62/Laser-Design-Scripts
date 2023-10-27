@@ -154,8 +154,8 @@ pulse = pynlo.light.Pulse.Sech(
 )
 
 # %% --------- passive fibers -------------------------------------------------
-gamma_pm1550 = 1
-gamma_edf = 6
+gamma_pm1550 = 1.2
+gamma_edf = 6.5
 
 pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
@@ -190,15 +190,15 @@ D_g = -2 * np.pi * c / 1560e-9**2 * beta2_g / ps * nm * km
 D_p = 18
 l_t = c / 1.5 / f_r  # total cavity length
 
-# target round trip dispersion in the loop
+# ----- target round trip dispersion in the loop
 # D_l = 7
 # l_p_s = 0.11  # shortest straight section I can do
 # l_g = (D_l - D_p) * (l_t - 2 * l_p_s) / (D_g - D_p)
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
-# target total round trip dispersion: D_l -> D_rt
-D_rt = 7
-l_p_s = 0.13  # length of straight section
+# ----- target total round trip dispersion: D_l -> D_rt
+D_rt = 6.5
+l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
@@ -211,17 +211,18 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 500 * 1e-3
+Pp = 300 * 1e-3
 phi = np.pi / 2
-include_loss = True
-do_backward_pump = False
-loss = 0.8
+loss = 10 ** -(0.8 / 10)
 
 # set up plot
 fig, ax = plt.subplots(2, 2)
 
 loop_count = 0
+do_backward_pump = False
+include_loss = True
 done = False
+tol = 1e-3
 while not done:
     # ------------- start at splitter --------------------------
     p_gf.a_t[:] = p_s.a_t[:] / 2  # straight / 2
@@ -272,6 +273,8 @@ while not done:
     p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) + p_pf.a_t[:]
     p_out.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) - p_pf.a_t[:]
 
+    ratio_in_to_out = np.round(p_s.e_p / p_out.e_p, 4)
+
     # ------------- straight section --------------------------
     if include_loss:
         # splitter insertion loss
@@ -306,10 +309,24 @@ while not done:
         l4.set_ydata(p_s.p_t / p_s.p_t.max())
         plt.pause(0.01)
 
-    if loop_count == 150:
+    if loop_count == 500:
         done = True
+
+    if loop_count == 0:
+        p_v_old = p_out.p_v / p_out.p_v.max()
+        error = None
+    elif loop_count > 50:
+        p_v_new = p_out.p_v / p_out.p_v.max()
+        error = np.mean((p_v_new - p_v_old) ** 2) ** 0.5
+        if error < tol:
+            done = True
+        else:
+            p_v_old = p_v_new
 
     loop_count += 1
     print(
-        loop_count, np.round(p_out.e_p * f_r * 1e3, 4), np.round(p_s.e_p * f_r * 1e3, 4)
+        loop_count,
+        np.round(p_out.e_p * f_r * 1e3, 4) * 0.8**2,
+        ratio_in_to_out,
+        error,
     )
