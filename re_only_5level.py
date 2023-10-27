@@ -60,11 +60,13 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 
 
 # %% ------------- pulse ------------------------------------------------------
+f_r = 1e9
+e_p = 1e-3 / f_r
+
 n = 256
 v_min = c / 1700e-9
 v_max = c / 1400e-9
 v0 = c / 1550e-9
-e_p = 25e-3 / 100e6
 t_fwhm = 250e-15
 min_time_window = 10e-12
 pulse = pynlo.light.Pulse.Sech(
@@ -77,6 +79,7 @@ pulse = pynlo.light.Pulse.Sech(
     min_time_window,
     alias=2,
 )
+
 
 # %% -------------------------------------------------------------------------
 sigma_p = spl_sigma_a(c / 980e-9)
@@ -141,8 +144,7 @@ def func(
 
 
 # %% -------------------------------------------------------------------------
-f_r = 100e6
-Pp_0 = 1.8
+Pp_0 = 2
 Pv_0 = pulse.p_v.copy() * pulse.dv * f_r
 length = 4
 
@@ -177,23 +179,26 @@ for n, (pp, pv) in enumerate(zip(sol_Pp, sol_Pv)):
     n5[n] = inversion[4]
 
 # %% ----------------------------- plot results! ------------------------------
-fig, ax = plt.subplots(1, 1)
-ax.plot(z, sol_Pp, label="pump")
-ax.plot(z, sol_Ps, label="signal")
-ax.grid()
-ax.legend(loc="best")
-ax.set_xlabel("position (m)")
-ax.set_ylabel("power (W)")
-fig.tight_layout()
+fig = plt.figure(
+    num="5-level rate equation for 250 fs pulse", figsize=np.array([11.16, 5.21])
+)
+ax1 = fig.add_subplot(1, 2, 1)
+ax2 = fig.add_subplot(1, 2, 2)
+(line_11,) = ax1.plot(z, sol_Pp, label="pump")
+(line_12,) = ax1.plot(z, sol_Ps, label="signal")
+ax1.grid()
+ax1.legend(loc="best")
+ax1.set_xlabel("position (m)")
+ax1.set_ylabel("power (W)")
 
-fig, ax = plt.subplots(1, 1)
-ax.plot(z, n1 / n_ion, label="n1")
-ax.plot(z, n2 / n_ion, label="n2")
-ax.plot(z, n3 / n_ion, label="n3")
-ax.plot(z, n4 / n_ion, label="n4")
-ax.plot(z, n5 / n_ion, label="n5")
-ax.grid()
-ax.legend(loc="best")
-ax.set_xlabel("position (m)")
-ax.set_ylabel("population inversion")
+(line_21,) = ax2.plot(z, n1 / n_ion, label="n1")
+(line_22,) = ax2.plot(z, n2 / n_ion, label="n2")
+(line_23,) = ax2.plot(z, n3 / n_ion, label="n3")
+(line_24,) = ax2.plot(z, n4 / n_ion, label="n4")
+(line_25,) = ax2.plot(z, n5 / n_ion, label="n5")
+ax2.grid()
+ax2.legend(loc="best")
+ax2.set_xlabel("position (m)")
+ax2.set_ylabel("population inversion")
+
 fig.tight_layout()

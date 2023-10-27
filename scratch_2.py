@@ -1,14 +1,13 @@
-# %% ----- imports
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import InterpolatedUnivariateSpline
-import pynlo
-import clipboard
-import pandas as pd
 from scipy.constants import c
+import pandas as pd
+import clipboard
 from re_nlse_joint_5level import EDF
-from scipy.optimize import minimize, Bounds
-import collections
+from edfa import amplify
+import pynlo
+import numpy as np
+from scipy.interpolate import InterpolatedUnivariateSpline
+import matplotlib.pyplot as plt
+import time
 
 ns = 1e-9
 ps = 1e-12
@@ -18,49 +17,6 @@ nm = 1e-9
 um = 1e-6
 km = 1e3
 W = 1.0
-
-output = collections.namedtuple("output", ["model", "sim"])
-
-
-class BackwardSim:
-    def __init__(self, fiber, pulse, length, Pp_fwd, Pp_bck):
-        self.fiber = fiber
-        self.pulse = pulse
-        self.length = length
-        self.Pp_fwd = Pp_fwd
-        self.Pp_bck = Pp_bck
-
-    def func(self, Pp_bck):
-        (Pp_bck,) = Pp_bck
-        self.model, dz = self.fiber.generate_model(
-            self.pulse,
-            Pp_fwd=self.Pp_fwd,
-            Pp_bck=Pp_bck,
-        )
-        self.sim = self.model.simulate(self.length, dz=dz, n_records=100)
-        return abs(self.sim.Pp[-1] - self.Pp_bck) ** 2
-
-
-def amplify(fiber, pulse, length, Pp_fwd, Pp_bck):
-    fiber: EDF
-    if Pp_bck == 0:
-        model, dz = fiber.generate_model(pulse, Pp_fwd=Pp_fwd)
-        sim = model.simulate(length, dz=dz, local_error=1e-20, n_records=100)
-
-    else:
-        backward_sim = BackwardSim(fiber, pulse, length, Pp_fwd, Pp_bck)
-        guess = 1e-6
-        minimize(
-            backward_sim.func,
-            np.array([guess]),
-            bounds=Bounds(lb=0, ub=np.inf),
-            tol=1e-7,
-        )
-        sim = backward_sim.sim
-        model = backward_sim.model
-
-    return output(model=model, sim=sim)
-
 
 # %% -------------- load absorption coefficients from NLight ------------------
 sigma = pd.read_excel("NLight_provided/Erbium Cross Section - nlight_pump+signal.xlsx")
@@ -135,14 +91,20 @@ edf.set_beta_from_beta_n(v0, polyfit)  # only gdd
 gamma_edf = 0
 edf.gamma = gamma_edf / (W * km)
 
-# %% ------ quick test
-model_fwd, sim_fwd = amplify(edf, pulse, 4, 2, 0)
-model_bck, sim_bck = amplify(edf, pulse, 4, 0, 2)
+sim_fwd = amplify(4, edf, pulse, p_bck=None, Pp_fwd=2, Pp_bck=0.0, n_records=100).sim
+bck, Pp = amplify(4, edf, pulse, p_bck=None, Pp_fwd=0, Pp_bck=2, n_records=100)
+bck.sim.Pp += Pp[::-1]
+sim_bck = bck.sim
 
-# %% ----------------------------- plot results! ------------------------------
-fig = plt.figure(
-    num="forward", figsize=np.array([11.16, 5.21])
-)
+# t1 = time.time()
+# fwd, bck = amplify(2, edf, pulse, p_bck=pulse, Pp_fwd=0.0, Pp_bck=2, n_records=100)
+# t2 = time.time()
+# print((t2 - t1) / 60)
+# bck.sim.Pp += fwd.sim.Pp
+# sim_bck = bck.sim
+
+# %% --- look at results!
+fig = plt.figure(num="forward", figsize=np.array([11.16, 5.21]))
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
 (line_11,) = ax1.plot(sim_fwd.z, sim_fwd.Pp, label="pump")
@@ -166,9 +128,7 @@ ax2.set_ylabel("population inversion")
 
 fig.tight_layout()
 
-fig = plt.figure(
-    num="backward", figsize=np.array([11.16, 5.21])
-)
+fig = plt.figure(num="backward", figsize=np.array([11.16, 5.21]))
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
 (line_11,) = ax1.plot(sim_bck.z, sim_bck.Pp, label="pump")

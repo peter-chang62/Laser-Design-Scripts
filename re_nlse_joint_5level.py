@@ -518,6 +518,10 @@ class Model_EDF(pynlo.model.Model):
             else:
                 final_step = False
 
+            # don't let the simulation step by more than 1 mm! This is to help
+            # force it sync up with the pump's rk45
+            dz = min([dz, 1e-3])
+
             # ---- Integrate by dz
             a_RK4_v, a_RK3_v, k5_v_next = self.step(
                 a_v, z, z_next, k5_v=k5_v, cont=cont
@@ -906,5 +910,5 @@ class EDF(pynlo.materials.SilicaFiber):
         print("USING NLSE")
         model = NLSE(pulse, mode)
         dz = model.estimate_step_size()
-        model.mode.setup_rk45_Pp(dz / 10)
+        model.mode.setup_rk45_Pp(1e-3)
         return model, dz
