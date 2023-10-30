@@ -60,8 +60,10 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 
 
 # %% ------------- pulse ------------------------------------------------------
+loss_ins = 10 ** (-0.7 / 10)
+loss_spl = 10 ** (-0.2 / 10)
 f_r = 1e9
-e_p = 1e-3 / f_r
+e_p = 25e-3 / f_r * loss_ins * loss_spl
 
 n = 256
 v_min = c / 1700e-9
@@ -144,9 +146,9 @@ def func(
 
 
 # %% -------------------------------------------------------------------------
-Pp_0 = 2
+Pp_0 = 2 * loss_ins * loss_spl
 Pv_0 = pulse.p_v.copy() * pulse.dv * f_r
-length = 4
+length = 2
 
 X_0 = np.hstack([Pp_0, Pv_0])
 z = np.linspace(0, length, 1000)
@@ -162,7 +164,7 @@ args = (
 sol = odeint(func, X_0, z, args=args)
 
 sol_Pp = sol[:, 0]
-sol_Pv = sol[:, 1:]
+sol_Pv = sol[:, 1:] * loss_ins * loss_spl
 sol_Ps = np.sum(sol_Pv, axis=1)
 
 n1 = np.zeros(z.size)
@@ -184,18 +186,18 @@ fig = plt.figure(
 )
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
-(line_11,) = ax1.plot(z, sol_Pp, label="pump")
-(line_12,) = ax1.plot(z, sol_Ps, label="signal")
+(line_11,) = ax1.plot(z, sol_Pp, label="pump", linewidth=2)
+(line_12,) = ax1.plot(z, sol_Ps, label="signal", linewidth=2)
 ax1.grid()
 ax1.legend(loc="best")
 ax1.set_xlabel("position (m)")
 ax1.set_ylabel("power (W)")
 
-(line_21,) = ax2.plot(z, n1 / n_ion, label="n1")
-(line_22,) = ax2.plot(z, n2 / n_ion, label="n2")
-(line_23,) = ax2.plot(z, n3 / n_ion, label="n3")
-(line_24,) = ax2.plot(z, n4 / n_ion, label="n4")
-(line_25,) = ax2.plot(z, n5 / n_ion, label="n5")
+(line_21,) = ax2.plot(z, n1 / n_ion, label="n1", linewidth=2)
+(line_22,) = ax2.plot(z, n2 / n_ion, label="n2", linewidth=2)
+(line_23,) = ax2.plot(z, n3 / n_ion, label="n3", linewidth=2)
+(line_24,) = ax2.plot(z, n4 / n_ion, label="n4", linewidth=2)
+(line_25,) = ax2.plot(z, n5 / n_ion, label="n5", linewidth=2)
 ax2.grid()
 ax2.legend(loc="best")
 ax2.set_xlabel("position (m)")

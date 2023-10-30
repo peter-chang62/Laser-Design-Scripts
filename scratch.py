@@ -49,8 +49,10 @@ polyfit = np.polyfit(omega - omega0, gvd[:, 1], deg=3)
 polyfit = polyfit[::-1]  # lowest order first
 
 # %% ------------- pulse ------------------------------------------------------
+loss_ins = 10 ** (-0.7 / 10)
+loss_spl = 10 ** (-0.2 / 10)
 f_r = 1e9
-e_p = 1e-3 / f_r
+e_p = 25e-3 / f_r * loss_ins * loss_spl
 
 n = 256
 v_min = c / 1700e-9
@@ -92,14 +94,14 @@ edf.set_beta_from_beta_n(v0, polyfit)  # only gdd
 gamma_edf = 0
 edf.gamma = gamma_edf / (W * km)
 
-# %% ----------- base case forward sim had better work ------------------------
+# %% ----------- edfa ---------------------------------------------------------
 model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_fwd=pulse,
-    p_bck=pulse,
+    p_bck=None,
     edf=edf,
     length=2,
-    Pp_fwd=0,
-    Pp_bck=2,
+    Pp_fwd=0 * loss_ins * loss_spl,
+    Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,
 )
 
@@ -119,18 +121,18 @@ fig = plt.figure(
 )
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
-(line_11,) = ax1.plot(z, sol_Pp, label="pump")
-(line_12,) = ax1.plot(z, sol_Ps, label="signal")
+(line_11,) = ax1.plot(z, sol_Pp, label="pump", linewidth=2)
+(line_12,) = ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
 ax1.grid()
 ax1.legend(loc="best")
 ax1.set_xlabel("position (m)")
 ax1.set_ylabel("power (W)")
 
-(line_21,) = ax2.plot(z, n1, label="n1")
-(line_22,) = ax2.plot(z, n2, label="n2")
-(line_23,) = ax2.plot(z, n3, label="n3")
-(line_24,) = ax2.plot(z, n4, label="n4")
-(line_25,) = ax2.plot(z, n5, label="n5")
+(line_21,) = ax2.plot(z, n1, label="n1", linewidth=2)
+(line_22,) = ax2.plot(z, n2, label="n2", linewidth=2)
+(line_23,) = ax2.plot(z, n3, label="n3", linewidth=2)
+(line_24,) = ax2.plot(z, n4, label="n4", linewidth=2)
+(line_25,) = ax2.plot(z, n5, label="n5", linewidth=2)
 ax2.grid()
 ax2.legend(loc="best")
 ax2.set_xlabel("position (m)")
