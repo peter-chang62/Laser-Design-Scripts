@@ -11,11 +11,11 @@ import pynlo
 from scipy.integrate import RK45
 import collections
 from five_level_ss_eqns import (
-    n1_func,
-    n2_func,
-    n3_func,
-    n4_func,
-    n5_func,
+    _n1_func,
+    _n2_func,
+    _n3_func,
+    _n4_func,
+    _n5_func,
     tau_21,
     tau_32,
     tau_43,
@@ -146,7 +146,8 @@ class Mode(pynlo.media.Mode):
         tau_32=tau_32,
         tau_43=tau_43,
         tau_54=tau_54,
-        p_v_prev=None,
+        sum_a_prev=None,
+        sum_e_prev=None,
         Pp_prev=None,
     ):
         assert isinstance(p_v, (np.ndarray, pynlo.utility.misc.ArrayWrapper))
@@ -182,13 +183,20 @@ class Mode(pynlo.media.Mode):
         self._tau_43 = tau_43
         self._tau_54 = tau_54
 
-        if p_v_prev is None:
-            p_v_prev = lambda z: 0
+        if sum_a_prev is None:
+            assert sum_e_prev is None, "cannot only supply one"
+            sum_a_was_None = True
+            sum_a_prev = lambda z: 0
+        if sum_e_prev is None:
+            assert sum_a_was_None, "cannot only supply one"
+            sum_e_prev = lambda z: 0
         if Pp_prev is None:
             Pp_prev = lambda z: 0
-        assert callable(p_v_prev)
+        assert callable(sum_a_prev)
+        assert callable(sum_e_prev)
         assert callable(Pp_prev)
-        self.p_v_prev = p_v_prev
+        self.sum_a_prev = sum_a_prev
+        self.sum_e_prev = sum_e_prev
         self.Pp_prev = Pp_prev
 
         # alpha = lambda z, p_v: self.gain
@@ -197,17 +205,6 @@ class Mode(pynlo.media.Mode):
         # __init__ sets _p_v to None, so assign this after the __init__ call
         self.p_v = p_v
         self.dv = self.v_grid[1] - self.v_grid[0]
-
-    @pynlo.utility.misc.SettableArrayProperty
-    def p_v(self, key=...):
-        return (self._p_v + self.p_v_prev(self.z))[key]
-
-    @p_v.setter
-    def p_v(self, p_v, key=...):
-        if self._p_v is None:
-            self._p_v = p_v
-        else:
-            self._p_v[key] = p_v
 
     @property
     def tau_21(self):
@@ -272,18 +269,21 @@ class Mode(pynlo.media.Mode):
     @property
     def n1(self):
         p_s = self.f_r * self.p_v * self.dv
-        n1 = n1_func(
+        sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
+        sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
+        sum_a = np.sum(sum_a)
+        sum_e = np.sum(sum_e)
+        sum_a += self.sum_a_prev(self.z)
+        sum_e += self.sum_e_prev(self.z)
+        n1 = _n1_func(
             self.n_ion,
             self.a_eff,
             self.overlap_p,
-            self.overlap_s,
             self.nu_p,
             self.Pp,
-            self.v_grid,
-            p_s,
             self.sigma_p,
-            self.sigma_a,
-            self.sigma_e,
+            sum_a,
+            sum_e,
             self.eps_p,
             self.xi_p,
             self.eps_s,
@@ -297,18 +297,21 @@ class Mode(pynlo.media.Mode):
     @property
     def n2(self):
         p_s = self.f_r * self.p_v * self.dv
-        n2 = n2_func(
+        sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
+        sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
+        sum_a = np.sum(sum_a)
+        sum_e = np.sum(sum_e)
+        sum_a += self.sum_a_prev(self.z)
+        sum_e += self.sum_e_prev(self.z)
+        n2 = _n2_func(
             self.n_ion,
             self.a_eff,
             self.overlap_p,
-            self.overlap_s,
             self.nu_p,
             self.Pp,
-            self.v_grid,
-            p_s,
             self.sigma_p,
-            self.sigma_a,
-            self.sigma_e,
+            sum_a,
+            sum_e,
             self.eps_p,
             self.xi_p,
             self.eps_s,
@@ -322,18 +325,21 @@ class Mode(pynlo.media.Mode):
     @property
     def n3(self):
         p_s = self.f_r * self.p_v * self.dv
-        n3 = n3_func(
+        sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
+        sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
+        sum_a = np.sum(sum_a)
+        sum_e = np.sum(sum_e)
+        sum_a += self.sum_a_prev(self.z)
+        sum_e += self.sum_e_prev(self.z)
+        n3 = _n3_func(
             self.n_ion,
             self.a_eff,
             self.overlap_p,
-            self.overlap_s,
             self.nu_p,
             self.Pp,
-            self.v_grid,
-            p_s,
             self.sigma_p,
-            self.sigma_a,
-            self.sigma_e,
+            sum_a,
+            sum_e,
             self.eps_p,
             self.xi_p,
             self.eps_s,
@@ -347,18 +353,21 @@ class Mode(pynlo.media.Mode):
     @property
     def n4(self):
         p_s = self.f_r * self.p_v * self.dv
-        n4 = n4_func(
+        sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
+        sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
+        sum_a = np.sum(sum_a)
+        sum_e = np.sum(sum_e)
+        sum_a += self.sum_a_prev(self.z)
+        sum_e += self.sum_e_prev(self.z)
+        n4 = _n4_func(
             self.n_ion,
             self.a_eff,
             self.overlap_p,
-            self.overlap_s,
             self.nu_p,
             self.Pp,
-            self.v_grid,
-            p_s,
             self.sigma_p,
-            self.sigma_a,
-            self.sigma_e,
+            sum_a,
+            sum_e,
             self.eps_p,
             self.xi_p,
             self.eps_s,
@@ -372,18 +381,21 @@ class Mode(pynlo.media.Mode):
     @property
     def n5(self):
         p_s = self.f_r * self.p_v * self.dv
-        n5 = n5_func(
+        sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
+        sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
+        sum_a = np.sum(sum_a)
+        sum_e = np.sum(sum_e)
+        sum_a += self.sum_a_prev(self.z)
+        sum_e += self.sum_e_prev(self.z)
+        n5 = _n5_func(
             self.n_ion,
             self.a_eff,
             self.overlap_p,
-            self.overlap_s,
             self.nu_p,
             self.Pp,
-            self.v_grid,
-            p_s,
             self.sigma_p,
-            self.sigma_a,
-            self.sigma_e,
+            sum_a,
+            sum_e,
             self.eps_p,
             self.xi_p,
             self.eps_s,
@@ -452,6 +464,26 @@ class Mode(pynlo.media.Mode):
 class Model_EDF(pynlo.model.Model):
     def __init__(self, pulse, mode):
         super().__init__(pulse, mode)
+        self._Pp_record = []
+        self._sum_a_record = []
+        self._sum_e_record = []
+        self._z_record = []
+
+    @property
+    def Pp_record(self):
+        return np.asarray(self._Pp_record)
+
+    @property
+    def sum_a_record(self):
+        return np.asarray(self._sum_a_record)
+
+    @property
+    def sum_e_record(self):
+        return np.asarray(self._sum_e_record)
+
+    @property
+    def z_record(self):
+        return np.asarray(self._z_record)
 
     def propagate(self, a_v, z, z_stop, dz, local_error, k5_v=None, cont=False):
         """
@@ -509,6 +541,14 @@ class Model_EDF(pynlo.model.Model):
         self.mode.update_Pp()
 
         while z < z_stop:
+            # Don't let the simulation step by more than 1 mm! This is to help
+            # force it sync up with the pump's rk45. The other option is to
+            # encode the pump update into update_linearity() which is called
+            # during step(). However, this is not so easy to do because the
+            # pump is not just a callable function, but a value calculated
+            # using it's own rk45.
+            dz = min([dz, 1e-3])
+
             z_next = z + dz
             if z_next >= z_stop:
                 final_step = True
@@ -517,10 +557,6 @@ class Model_EDF(pynlo.model.Model):
                 dz = z_next - z  # force smaller step size to hit z_stop
             else:
                 final_step = False
-
-            # don't let the simulation step by more than 1 mm! This is to help
-            # force it sync up with the pump's rk45
-            dz = min([dz, 1e-3])
 
             # ---- Integrate by dz
             a_RK4_v, a_RK3_v, k5_v_next = self.step(
@@ -547,12 +583,30 @@ class Model_EDF(pynlo.model.Model):
                     dz = dz_adaptive  # if final step, use adaptive step size
                 cont = True
 
+                # ----------- if this loop passed, update values needed to
+                #             calculate the next one!
+
                 # update pulse energy for gain calculation
                 p_v[:] = abs(a_v) ** 2
                 if self._use_fftshift:
                     p_v = np.fft.fftshift(p_v)
                 self.mode.p_v[:] = p_v[:]
                 self.mode.update_Pp()
+
+                # record values for future sims
+                v_grid = self.pulse.v_grid
+                dv = self.pulse.dv
+                f_r = self.mode.f_r
+                a_eff = self.mode.a_eff
+                sigma_a = self.mode.sigma_a
+                sigma_e = self.mode.sigma_e
+                gamma = self.mode.overlap_s
+                sum_a = gamma * np.sum(p_v * dv * f_r * sigma_a / (h * v_grid * a_eff))
+                sum_e = gamma * np.sum(p_v * dv * f_r * sigma_e / (h * v_grid * a_eff))
+                self._sum_a_record.append(sum_a)
+                self._sum_e_record.append(sum_e)
+                self._Pp_record.append(self.mode.Pp_fwd + self.mode.Pp_bck)
+                self._z_record.append(z)
 
         return a_v, z, dz, k5_v, cont
 
@@ -716,6 +770,26 @@ class Model_EDF(pynlo.model.Model):
 class NLSE(pynlo.model.NLSE):
     def __init__(self, pulse, mode):
         super().__init__(pulse, mode)
+        self._Pp_record = []
+        self._sum_a_record = []
+        self._sum_e_record = []
+        self._z_record = []
+
+    @property
+    def Pp_record(self):
+        return np.asarray(self._Pp_record)
+
+    @property
+    def sum_a_record(self):
+        return np.asarray(self._sum_a_record)
+
+    @property
+    def sum_e_record(self):
+        return np.asarray(self._sum_e_record)
+
+    @property
+    def z_record(self):
+        return np.asarray(self._z_record)
 
     def propagate(self, a_v, z, z_stop, dz, local_error, k5_v=None, cont=False):
         # ---- Standard FFT Order
@@ -835,7 +909,8 @@ class EDF(pynlo.materials.SilicaFiber):
         raman_on=True,
         Pp_fwd=0,
         Pp_bck=0,
-        p_v_prev=None,
+        sum_a_prev=None,
+        sum_e_prev=None,
         Pp_prev=None,
     ):
         """
@@ -903,11 +978,12 @@ class EDF(pynlo.materials.SilicaFiber):
             tau_32=self.tau_32,
             tau_43=self.tau_43,
             tau_54=self.tau_54,
-            p_v_prev=p_v_prev,
+            sum_a_prev=sum_a_prev,
+            sum_e_prev=sum_e_prev,
             Pp_prev=Pp_prev,
         )
 
-        print("USING NLSE")
+        # print("USING NLSE")
         model = NLSE(pulse, mode)
         dz = model.estimate_step_size()
         model.mode.setup_rk45_Pp(1e-3)

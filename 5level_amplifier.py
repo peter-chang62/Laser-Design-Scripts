@@ -136,8 +136,8 @@ gamma_edf = 0
 edf.gamma = gamma_edf / (W * km)
 
 # %% ------ quick test
-model_fwd, sim_fwd = amplify(edf, pulse, 4, 2, 0)
-model_bck, sim_bck = amplify(edf, pulse, 4, 0, 2)
+model_fwd, sim_fwd = amplify(edf, pulse, 2, 2, 0)
+model_bck, sim_bck = amplify(edf, pulse, 2, 0, 2)
 
 # %% ----------------------------- plot results! ------------------------------
 fig = plt.figure(

@@ -1,14 +1,14 @@
 # %% ----- imports
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import InterpolatedUnivariateSpline
 import pynlo
 import clipboard
 import pandas as pd
 from scipy.constants import c
 from re_nlse_joint_5level import EDF
+import edfa
 import collections
-from scipy.optimize import minimize, Bounds
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 ns = 1e-9
 ps = 1e-12
@@ -40,66 +40,6 @@ def propagate(fiber, pulse, length):
     dz = model.estimate_step_size()
     sim = model.simulate(length, dz=dz, n_records=n_records)
     return output(model=model, sim=sim)
-
-
-class _BackwardSim:
-    def __init__(self, pulse, fiber, length, Pp_fwd, Pp_bck):
-        self.pulse = pulse
-        self.fiber = fiber
-        self.Pp_fwd = Pp_fwd
-        self.Pp_bck = Pp_bck
-        self.length = length
-
-        self.pulse: pynlo.light.Pulse
-        self.fiber: EDF
-
-    def func(self, Pp_bck):
-        (Pp_bck,) = Pp_bck
-        self.model, dz = self.fiber.generate_model(
-            self.pulse,
-            t_shock=None,
-            raman_on=False,
-            Pp_fwd=self.Pp_fwd,
-            Pp_bck=Pp_bck,
-        )
-        self.sim = self.model.simulate(self.length, dz=dz, n_records=n_records)
-        return abs(self.sim.Pp[-1] - self.Pp_bck) ** 2
-
-
-def amplify(fiber, pulse, length, Pp_fwd, Pp_bck=0.0):
-    """
-    amplifies a given pulse through edf fiber of given length and pump power
-
-    Args:
-        fiber (instance of EDF): erbium doped fiber
-        pulse (instance of Pulse): Pulse
-        length (float): edf length
-        Pp_fwd (float): forward pump power
-        Pp_bck (float): backwards pump power
-
-    Returns:
-        output: model, sim
-    """
-    fiber: EDF
-
-    if Pp_bck == 0:
-        model, dz = fiber.generate_model(
-            pulse, t_shock=None, raman_on=False, Pp_fwd=Pp_fwd
-        )
-        sim = model.simulate(length, dz=dz, n_records=n_records)
-        return output(model=model, sim=sim)
-
-    else:
-        backwards_sim = _BackwardSim(pulse, fiber, length, Pp_fwd, Pp_bck)
-        minimize(
-            backwards_sim.func,
-            np.array([1e-6]),
-            bounds=Bounds(lb=0, ub=np.inf),
-            tol=1e-7,
-        )
-        sim = backwards_sim.sim
-        model = backwards_sim.model
-        return output(model=model, sim=sim)
 
 
 # %% -------------- load absorption coefficients from NLight ------------------
@@ -135,7 +75,7 @@ polyfit = polyfit[::-1]  # lowest order first
 # %% ------------- pulse ------------------------------------------------------
 f_r = 200e6
 n = 256
-v_min = c / 1800e-9
+v_min = c / 1750e-9
 v_max = c / 1400e-9
 v0 = c / 1560e-9
 e_p = 1e-3 / f_r
@@ -197,7 +137,7 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 6.5
+D_rt = 4.5
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
@@ -211,9 +151,9 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 300 * 1e-3
+Pp = 400 * 1e-3
 phi = np.pi / 2
-loss = 10 ** -(0.8 / 10)
+loss = 10 ** -(0.7 / 10)
 
 # set up plot
 fig, ax = plt.subplots(2, 2)
@@ -231,49 +171,44 @@ while not done:
     # ------------- gain fiber first --------------------------
     # gain section
     if include_loss:
-        # splice from splitter to gain
-        p_gf.p_v[:] *= loss
-
-    # gain fiber
-    p_gf.a_t[:] = amplify(edf, p_gf, l_g, Pp).sim.pulse_out.a_t[:]
-
-    if include_loss:
-        # splice from gain to phase bias
-        p_gf.p_v[:] *= loss
-        # phase bias insertion loss
-        p_gf.p_v[:] *= loss
-
-    # passive fiber
-    p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l).sim.pulse_out.a_t[:]
+        p_gf.p_v[:] *= loss  # splice from splitter to gain
 
     # ------------- passive fiber first --------------------------
     # passive fiber
     p_pf.a_t[:] = propagate(pm1550, p_pf, l_p_l).sim.pulse_out.a_t[:]
 
     if include_loss:
-        # phase bias insertion loss
-        p_pf.p_v[:] *= loss
-        # splice from phase bias to gain
-        p_pf.p_v[:] *= loss
+        p_pf.p_v[:] *= loss  # phase bias insertion loss
+        p_pf.p_v[:] *= loss  # splice from phase bias to gain
 
-    # gain fiber
-    p_pf.a_t[:] = amplify(
-        edf,
-        p_pf,
+    # ----------- gain section ---------------------------------
+    fwd, bck = edfa.amplify(
         l_g,
-        0 if do_backward_pump else Pp,
-        Pp if do_backward_pump else 0,
-    ).sim.pulse_out.a_t[:]
+        edf,
+        p_gf,
+        p_bck=p_pf,
+        Pp_fwd=Pp,
+        Pp_bck=0.0,
+        n_records=n_records,
+    )
+    p_gf.a_t[:] = fwd.sim.pulse_out.a_t[:]
+    p_pf.a_t[:] = bck.sim.pulse_out.a_t[:]
 
     if include_loss:
-        # splice from gain to splitter
-        p_pf.p_v[:] *= loss
+        p_gf.p_v[:] *= loss  # splice from gain to phase bias
+        p_gf.p_v[:] *= loss  # phase bias insertion loss
+
+    # passive fiber
+    p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l).sim.pulse_out.a_t[:]
+
+    if include_loss:
+        p_pf.p_v[:] *= loss  # splice from gain to splitter
 
     # ------------- back to splitter --------------------------
     p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) + p_pf.a_t[:]
     p_out.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) - p_pf.a_t[:]
 
-    ratio_in_to_out = np.round(p_s.e_p / p_out.e_p, 4)
+    oc_percent = np.round(p_out.e_p / (p_s.e_p + p_out.e_p), 4)
 
     # ------------- straight section --------------------------
     if include_loss:
@@ -326,7 +261,7 @@ while not done:
     loop_count += 1
     print(
         loop_count,
-        np.round(p_out.e_p * f_r * 1e3, 4) * 0.8**2,
-        ratio_in_to_out,
+        np.round(p_out.e_p * f_r * 1e3, 4) * loss**2,
+        oc_percent,
         error,
     )

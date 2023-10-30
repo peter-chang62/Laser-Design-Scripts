@@ -1,13 +1,7 @@
-from scipy.constants import c
-import pandas as pd
-import clipboard
-from re_nlse_joint_5level import EDF, eps_p, xi_p
-import pynlo
+from re_nlse_joint_5level_wASE import EDF, eps_p, xi_p, Model_EDF
 import numpy as np
 import collections
-from scipy.interpolate import make_interp_spline, InterpolatedUnivariateSpline
-import matplotlib.pyplot as plt
-from scipy.integrate import odeint
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 ns = 1e-9
 ps = 1e-12
@@ -28,12 +22,69 @@ def dPp_dz(
     sigma_p,
     overlap_p,
 ):
+    """
+    Calculate dP/dz for the pump
+
+    Args:
+        n1 (float):
+            ground state population
+        n3 (float):
+            pump excited state population
+        P_p (float):
+            the current pump power
+        sigma_p (float):
+            pump absorption coefficient
+        overlap_p (float):
+            the pump mode and core doping overlap (0 -> 1)
+    """
     return (
         (-sigma_p * n1 + sigma_p * xi_p * n3 - sigma_p * eps_p * n3) * overlap_p * P_p
     )
 
 
-def propagate_amp(length, edf, pulse, Pp, p_v_prev=None, Pp_prev=None, n_records=None):
+def propagate_amp(
+    length,
+    edf,
+    pulse,
+    Pp,
+    sum_a_prev=None,
+    sum_e_prev=None,
+    Pp_prev=None,
+    n_records=None,
+    record_sim=False,
+):
+    """
+    propagate pump and signal together through erbium doped fiber
+
+    Args:
+        length (float):
+            length of edf
+        edf (EDF instance):
+            erbium doped fiber instance
+        pulse (Pulse instance):
+            pynlo Pulse instance
+        Pp (float): input pump power
+        sum_a_prev(callable, optional):
+            should automatically be obtained from the model instance
+            this adds an additional signal spectrum when calculating the
+            population inversion, which is applicable for co-propagating signals!
+            callable(z) : sum(overlap_s * p_v * dv * f_r * sigma_a/ (h * a_eff * v_grid))
+        sum_e_prev(callable, optional):
+            this adds an additional signal spectrum when calculating the
+            population inversion, which is applicable for co-propagating signals!
+            should automatically be obtained from the model instance
+            callable(z) : sum(overlap_s * p_v * dv * f_r * sigma_e / (h * a_eff * v_grid))
+        Pp_prev (callable, optional):
+            callable(z) returns pump power recorded from the previous
+            propagation. this will be added at each step to calculate the
+            population inversion. This is applicable for counter propagating
+            pump and signal.
+        n_records (int, optional):
+            number of spectra to record along the fiber during propagation
+
+    Returns:
+        output: output(model=model, sim=sim)
+    """
     edf: EDF
 
     model, dz = edf.generate_model(
@@ -42,65 +93,142 @@ def propagate_amp(length, edf, pulse, Pp, p_v_prev=None, Pp_prev=None, n_records
         raman_on=True,
         Pp_fwd=Pp,
         Pp_bck=0,
-        p_v_prev=p_v_prev,
+        sum_a_prev=sum_a_prev,
+        sum_e_prev=sum_e_prev,
         Pp_prev=Pp_prev,
+        record_sim=record_sim,
     )
     sim = model.simulate(length, dz=dz, n_records=n_records)
     return output(model=model, sim=sim)
 
 
 def amplify(length, edf, p_fwd, p_bck=None, Pp_fwd=0.0, Pp_bck=0.0, n_records=100):
+    """
+    This is the most general function of edfa.py It calculates propagation of
+    pumps and signals in erbium doped fiber for all cases: forward and
+    backward pumping, and forward and backward seeding
+
+    Args:
+        length (float):
+            length of erbium doped fiber
+        edf (EDF instance):
+            instance of EDF
+        p_fwd (Pulse instance):
+            instance of pynlo Pulse
+        p_bck (Pulse, optional):
+            instance of pynlo Pulse
+        Pp_fwd (float, optional):
+            forward input pump power
+        Pp_bck (float, optional):
+            backward input pump power
+        n_records (int, optional):
+            number of spectra to record during propagation
+
+    Returns:
+        output, output:
+            for forward pumping only it returns one outupt collection for
+            forward and backward seeding it returns two output collections,
+            one for forward, and one for backward.
+    """
     if p_bck is None:
         if Pp_bck == 0:  # forward seeding + forward pumping
             return propagate_amp(length, edf, p_fwd, Pp_fwd, n_records=n_records)
-
-        propagate_back = False
+        else:
+            propagate_back = False
+            p_bck = p_fwd.copy()
+            p_bck.p_t[:] = 0.0  # set the pulse energy to 0
     else:
         propagate_back = True
 
-    # same discretization as the maximum step size that I allow in the
-    # NLSE's rk4
-    n_records = int(np.round(length / 1e-3))
-    print(f"setting n_records to {n_records}")
-
     # forward propagation with no backward info
     model_fwd, sim_fwd = propagate_amp(
-        length, edf, p_fwd, Pp_fwd, p_v_prev=None, Pp_prev=None, n_records=n_records
+        length, edf, p_fwd, Pp_fwd, n_records=n_records, record_sim=True
     )
 
     done = False
     loop_count = 0
     tol = 1e-3
+    # z_grid = np.linspace(0, length, model_fwd.z_record.size)
     while not done:
-        # solve the backward propagation using forward info
+        # get info from forward propagation
+        sum_a = InterpolatedUnivariateSpline(
+            model_fwd.z_record, model_fwd.sum_a_record[::-1]
+        )
+        sum_e = InterpolatedUnivariateSpline(
+            model_fwd.z_record, model_fwd.sum_e_record[::-1]
+        )
+        Pp = InterpolatedUnivariateSpline(model_fwd.z_record, model_fwd.Pp_record[::-1])
         if propagate_back:
-            p_v = make_interp_spline(sim_fwd.z, sim_fwd.p_v[::-1])
-            Pp = InterpolatedUnivariateSpline(sim_fwd.z, sim_fwd.Pp[::-1])
-
+            # solve the backward propagation using forward info
             model_bck, sim_bck = propagate_amp(
                 length,
                 edf,
                 p_bck,
                 Pp_bck,
-                p_v_prev=p_v,
+                sum_a_prev=sum_a,
+                sum_e_prev=sum_e,
                 Pp_prev=Pp,
                 n_records=n_records,
+                record_sim=True,
             )
 
-            p_v = make_interp_spline(sim_bck.z, sim_bck.p_v[::-1])
-            Pp = InterpolatedUnivariateSpline(sim_bck.z, sim_bck.Pp[::-1])
-
+            # save backward info for calculating forward propagation
+            sum_a = InterpolatedUnivariateSpline(
+                model_bck.z_record, model_bck.sum_a_record[::-1]
+            )
+            sum_e = InterpolatedUnivariateSpline(
+                model_bck.z_record, model_bck.sum_e_record[::-1]
+            )
+            Pp = InterpolatedUnivariateSpline(
+                model_bck.z_record, model_bck.Pp_record[::-1]
+            )
         else:
-            n1 = InterpolatedUnivariateSpline(sim_fwd.z, sim_fwd.n1_n[::-1] * edf.n_ion)
-            n3 = InterpolatedUnivariateSpline(sim_fwd.z, sim_fwd.n3_n[::-1] * edf.n_ion)
-            func = lambda P_p, z: dPp_dz(n1(z), n3(z), P_p, edf.sigma_p, edf.overlap_p)
-            sol = np.squeeze(odeint(func, np.array([Pp_bck]), sim_fwd.z))
-            Pp = InterpolatedUnivariateSpline(sim_fwd.z, sol[::-1])
-            p_v = lambda z: 0
+            # solve the backward propagation using forward info
+            edf: EDF
+            model_bck, dz = edf.generate_model(
+                p_bck,
+                Pp_fwd=Pp_bck,
+                sum_a_prev=sum_a,
+                sum_e_prev=sum_e,
+                Pp_prev=Pp,
+            )
+            model_bck: Model_EDF
+            rk45 = model_bck.mode.rk45
+            z = [rk45.t]
+            sol = [rk45.y[0]]
+            sum_a = [model_bck.mode._sum_a_no_pre]
+            sum_e = [model_bck.mode._sum_e_no_pre]
+            p_v_ase = [np.zeros(p_fwd.n)]
+            z_record = [0]
+            z_step = length / n_records
+            idx = 1
+            while rk45.t < length:
+                rk45.step()
+                z.append(rk45.t)
+                sol.append(rk45.y[0])
+                sum_a.append(model_bck.mode._sum_a_no_pre)
+                sum_e.append(model_bck.mode._sum_e_no_pre)
+                if rk45.t > z_step * idx:
+                    p_v_ase.append(model_bck.mode.P_ASE)
+                    z_record.append(rk45.t)
+                    idx += 1
+
+            # save backward info for calculating forward propagation
+            sum_a = InterpolatedUnivariateSpline(z, sum_a[::-1])
+            sum_e = InterpolatedUnivariateSpline(z, sum_e[::-1])
+            Pp = InterpolatedUnivariateSpline(z, sol[::-1])
 
         # solve the forward propagation using backward info
         model_fwd, sim_fwd = propagate_amp(
-            length, edf, p_fwd, Pp_fwd, p_v_prev=p_v, Pp_prev=Pp, n_records=n_records
+            length,
+            edf,
+            p_fwd,
+            Pp_fwd,
+            sum_a_prev=sum_a,
+            sum_e_prev=sum_e,
+            Pp_prev=Pp,
+            n_records=n_records,
+            record_sim=True,
         )
 
         # book keeping
@@ -132,6 +260,7 @@ def amplify(length, edf, p_fwd, p_bck=None, Pp_fwd=0.0, Pp_bck=0.0, n_records=10
             Pp_new = sim_fwd.Pp[-1] + sim_bck.Pp[-1]
         else:
             Pp_new = sim_fwd.Pp[-1] + sol[-1]
+
         error_Pp = abs(Pp_new - Pp_old) / Pp_new
         Pp_old = Pp_new
         error[2] = error_Pp
@@ -139,12 +268,13 @@ def amplify(length, edf, p_fwd, p_bck=None, Pp_fwd=0.0, Pp_bck=0.0, n_records=10
         if np.all(error < tol):
             done = True
 
-        print(loop_count, error)
+        print(error)
         loop_count += 1
 
     if propagate_back:
         return output(model=model_fwd, sim=sim_fwd), output(
             model=model_bck, sim=sim_bck
         )
-    else:
-        return output(model=model_fwd, sim=sim_fwd), sol
+    else:  # backward pumping
+        sim_fwd.Pp += Pp(sim_fwd.z)
+        return output(model=model_fwd, sim=sim_fwd), [z_record, p_v_ase]

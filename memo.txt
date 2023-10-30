@@ -170,3 +170,10 @@ Notes to take from stepping parameters:
     - it claims that it can mode-lock with 28 cm of edf.
 
     - I get that you can use the ER 80... but you have to get 500 mW into the gain fiber, whereas with ER 110 you can be at 300 mW in the gain fiber. With loss taken into account, that means you need to output close to 800 mW, which I think might be more than what I recall measuring with the current driver turned to full. So in other words, the ER 80 is really pushing it, possibly not doable?
+
+----------------------------------------
+2023-10-27T15:52
+
+validation: The forward propagation matches the re_only (rate equation only) exactly. Then, I calculate the backward propagation using only forward propagation code + optimization to guess the value of the output pump. This value is back propagated using the forward propagation code. The output matches the results from using the iterative shooting method. This validates the iterative shooting method by matching it to the forward propagation code which is matched to the re_only code. So, granted that the re_only code is correct, the whole chain is validated :) !!!!
+
+The above is done using re_only_5level.py, 5level_amplifier.py and scratch_2.py

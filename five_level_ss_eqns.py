@@ -18,7 +18,7 @@ km = 1e3
 W = 1.0
 
 # pump emission and esa cross-sections
-xi_p = 1.08  # sigma_31 / sigma_13: ratio of sigma_se to sigma_a at 980 nm
+xi_p = 1.08  # sigma_31 / sigma_13: ratio of sigma_e to sigma_a at 980 nm
 eps_p = 0.95  # sigma_35 / sigma_13: ratio of sigma_esa to sigma_a at 980 nm
 eps_s = 0.17  # sigma_24/sigma_12: ratio of sigma_esa to sigma_a for the signal
 
@@ -354,6 +354,45 @@ def n1_func(
     )
 
 
+def _n1_func(
+    n,
+    a_eff,
+    overlap_p,
+    nu_p,
+    P_p,
+    sigma_p,
+    sum_a_p_s,
+    sum_e_p_s,
+    eps_p,
+    xi_p,
+    eps_s,
+    tau_21,
+    tau_32,
+    tau_43,
+    tau_54,
+):
+    sigma_12 = sum_a_p_s
+    sigma_21 = sum_e_p_s
+    sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
+    sigma_31 = xi_p * sigma_13
+    sigma_24 = eps_s * sigma_12
+    sigma_35 = eps_p * sigma_13
+
+    return _n1_mathematica(
+        n,
+        sigma_12,
+        sigma_21,
+        sigma_13,
+        sigma_31,
+        sigma_24,
+        sigma_35,
+        tau_21,
+        tau_32,
+        tau_43,
+        tau_54,
+    )
+
+
 def n2_func(
     n,
     a_eff,
@@ -380,6 +419,45 @@ def n2_func(
         sigma_12 = np.sum(sigma_12)
         sigma_21 = np.sum(sigma_21)
 
+    sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
+    sigma_31 = xi_p * sigma_13
+    sigma_24 = eps_s * sigma_12
+    sigma_35 = eps_p * sigma_13
+
+    return _n2_mathematica(
+        n,
+        sigma_12,
+        sigma_21,
+        sigma_13,
+        sigma_31,
+        sigma_24,
+        sigma_35,
+        tau_21,
+        tau_32,
+        tau_43,
+        tau_54,
+    )
+
+
+def _n2_func(
+    n,
+    a_eff,
+    overlap_p,
+    nu_p,
+    P_p,
+    sigma_p,
+    sum_a_p_s,
+    sum_e_p_s,
+    eps_p,
+    xi_p,
+    eps_s,
+    tau_21,
+    tau_32,
+    tau_43,
+    tau_54,
+):
+    sigma_12 = sum_a_p_s
+    sigma_21 = sum_e_p_s
     sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
     sigma_31 = xi_p * sigma_13
     sigma_24 = eps_s * sigma_12
@@ -446,6 +524,45 @@ def n3_func(
     )
 
 
+def _n3_func(
+    n,
+    a_eff,
+    overlap_p,
+    nu_p,
+    P_p,
+    sigma_p,
+    sum_a_p_s,
+    sum_e_p_s,
+    eps_p,
+    xi_p,
+    eps_s,
+    tau_21,
+    tau_32,
+    tau_43,
+    tau_54,
+):
+    sigma_12 = sum_a_p_s
+    sigma_21 = sum_e_p_s
+    sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
+    sigma_31 = xi_p * sigma_13
+    sigma_24 = eps_s * sigma_12
+    sigma_35 = eps_p * sigma_13
+
+    return _n3_mathematica(
+        n,
+        sigma_12,
+        sigma_21,
+        sigma_13,
+        sigma_31,
+        sigma_24,
+        sigma_35,
+        tau_21,
+        tau_32,
+        tau_43,
+        tau_54,
+    )
+
+
 def n4_func(
     n,
     a_eff,
@@ -492,6 +609,45 @@ def n4_func(
     )
 
 
+def _n4_func(
+    n,
+    a_eff,
+    overlap_p,
+    nu_p,
+    P_p,
+    sigma_p,
+    sum_a_p_s,
+    sum_e_p_s,
+    eps_p,
+    xi_p,
+    eps_s,
+    tau_21,
+    tau_32,
+    tau_43,
+    tau_54,
+):
+    sigma_12 = sum_a_p_s
+    sigma_21 = sum_e_p_s
+    sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
+    sigma_31 = xi_p * sigma_13
+    sigma_24 = eps_s * sigma_12
+    sigma_35 = eps_p * sigma_13
+
+    return _n4_mathematica(
+        n,
+        sigma_12,
+        sigma_21,
+        sigma_13,
+        sigma_31,
+        sigma_24,
+        sigma_35,
+        tau_21,
+        tau_32,
+        tau_43,
+        tau_54,
+    )
+
+
 def n5_func(
     n,
     a_eff,
@@ -518,6 +674,45 @@ def n5_func(
         sigma_12 = np.sum(sigma_12)
         sigma_21 = np.sum(sigma_21)
 
+    sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
+    sigma_31 = xi_p * sigma_13
+    sigma_24 = eps_s * sigma_12
+    sigma_35 = eps_p * sigma_13
+
+    return _n5_mathematica(
+        n,
+        sigma_12,
+        sigma_21,
+        sigma_13,
+        sigma_31,
+        sigma_24,
+        sigma_35,
+        tau_21,
+        tau_32,
+        tau_43,
+        tau_54,
+    )
+
+
+def _n5_func(
+    n,
+    a_eff,
+    overlap_p,
+    nu_p,
+    P_p,
+    sigma_p,
+    sum_a_p_s,
+    sum_e_p_s,
+    eps_p,
+    xi_p,
+    eps_s,
+    tau_21,
+    tau_32,
+    tau_43,
+    tau_54,
+):
+    sigma_12 = sum_a_p_s
+    sigma_21 = sum_e_p_s
     sigma_13 = _factor_sigma(sigma_p, nu_p, P_p, overlap_p, a_eff)
     sigma_31 = xi_p * sigma_13
     sigma_24 = eps_s * sigma_12

@@ -1,7 +1,8 @@
+# %% ----- imports
 from scipy.constants import c
 import pandas as pd
 import clipboard
-from re_nlse_joint_5level import EDF
+from re_nlse_joint_5level_wASE import EDF
 from edfa import amplify
 import pynlo
 import numpy as np
@@ -91,63 +92,65 @@ edf.set_beta_from_beta_n(v0, polyfit)  # only gdd
 gamma_edf = 0
 edf.gamma = gamma_edf / (W * km)
 
-sim_fwd = amplify(4, edf, pulse, p_bck=None, Pp_fwd=2, Pp_bck=0.0, n_records=100).sim
-bck, Pp = amplify(4, edf, pulse, p_bck=None, Pp_fwd=0, Pp_bck=2, n_records=100)
-bck.sim.Pp += Pp[::-1]
+# %% ------------ EDFA ------------------------------------------------
+t1 = time.time()
+bck, ase = amplify(2, edf, pulse, p_bck=None, Pp_fwd=0.0, Pp_bck=1.85, n_records=100)
+t2 = time.time()
+print((t2 - t1) / 60)
 sim_bck = bck.sim
 
-# t1 = time.time()
-# fwd, bck = amplify(2, edf, pulse, p_bck=pulse, Pp_fwd=0.0, Pp_bck=2, n_records=100)
-# t2 = time.time()
-# print((t2 - t1) / 60)
-# bck.sim.Pp += fwd.sim.Pp
-# sim_bck = bck.sim
+t1 = time.time()
+fwd = amplify(6, edf, pulse, p_bck=None, Pp_fwd=1.85, Pp_bck=0, n_records=100)
+t2 = time.time()
+print((t2 - t1) / 60)
+sim_fwd = fwd.sim
 
-# %% --- look at results!
-fig = plt.figure(num="forward", figsize=np.array([11.16, 5.21]))
+
+# %% ------------- look at results! -----------------------------------------
+fig = plt.figure(
+    num="five level RE + NLSE, backward pump 2",
+    figsize=np.array([11.16, 5.21]),
+)
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
-(line_11,) = ax1.plot(sim_fwd.z, sim_fwd.Pp, label="pump")
-(line_12,) = ax1.plot(
-    sim_fwd.z, np.sum(sim_fwd.p_v * pulse.dv * f_r, axis=1), label="signal"
-)
+ax1.plot(sim_bck.z, sim_bck.Pp, label="pump")
+ax1.plot(sim_bck.z, np.sum(sim_bck.p_v * pulse.dv * f_r, axis=1), label="signal")
 ax1.grid()
 ax1.legend(loc="best")
 ax1.set_xlabel("position (m)")
 ax1.set_ylabel("power (W)")
 
-(line_21,) = ax2.plot(sim_fwd.z, sim_fwd.n1_n, label="n1")
-(line_22,) = ax2.plot(sim_fwd.z, sim_fwd.n2_n, label="n2")
-(line_23,) = ax2.plot(sim_fwd.z, sim_fwd.n3_n, label="n3")
-(line_24,) = ax2.plot(sim_fwd.z, sim_fwd.n4_n, label="n4")
-(line_25,) = ax2.plot(sim_fwd.z, sim_fwd.n5_n, label="n5")
+ax2.plot(sim_bck.z, sim_bck.n1_n, label="n1")
+ax2.plot(sim_bck.z, sim_bck.n2_n, label="n2")
+ax2.plot(sim_bck.z, sim_bck.n3_n, label="n3")
+ax2.plot(sim_bck.z, sim_bck.n4_n, label="n4")
+ax2.plot(sim_bck.z, sim_bck.n5_n, label="n5")
 ax2.grid()
 ax2.legend(loc="best")
 ax2.set_xlabel("position (m)")
 ax2.set_ylabel("population inversion")
-
 fig.tight_layout()
 
-fig = plt.figure(num="backward", figsize=np.array([11.16, 5.21]))
+fig = plt.figure(
+    num="five level RE + NLSE, forward pump",
+    figsize=np.array([11.16, 5.21]),
+)
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
-(line_11,) = ax1.plot(sim_bck.z, sim_bck.Pp, label="pump")
-(line_12,) = ax1.plot(
-    sim_bck.z, np.sum(sim_bck.p_v * pulse.dv * f_r, axis=1), label="signal"
-)
+ax1.plot(sim_fwd.z, sim_fwd.Pp, label="pump")
+ax1.plot(sim_fwd.z, np.sum(sim_fwd.p_v * pulse.dv * f_r, axis=1), label="signal")
 ax1.grid()
 ax1.legend(loc="best")
 ax1.set_xlabel("position (m)")
 ax1.set_ylabel("power (W)")
 
-(line_21,) = ax2.plot(sim_bck.z, sim_bck.n1_n, label="n1")
-(line_22,) = ax2.plot(sim_bck.z, sim_bck.n2_n, label="n2")
-(line_23,) = ax2.plot(sim_bck.z, sim_bck.n3_n, label="n3")
-(line_24,) = ax2.plot(sim_bck.z, sim_bck.n4_n, label="n4")
-(line_25,) = ax2.plot(sim_bck.z, sim_bck.n5_n, label="n5")
+ax2.plot(sim_fwd.z, sim_fwd.n1_n, label="n1")
+ax2.plot(sim_fwd.z, sim_fwd.n2_n, label="n2")
+ax2.plot(sim_fwd.z, sim_fwd.n3_n, label="n3")
+ax2.plot(sim_fwd.z, sim_fwd.n4_n, label="n4")
+ax2.plot(sim_fwd.z, sim_fwd.n5_n, label="n5")
 ax2.grid()
 ax2.legend(loc="best")
 ax2.set_xlabel("position (m)")
 ax2.set_ylabel("population inversion")
-
 fig.tight_layout()
