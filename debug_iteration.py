@@ -48,8 +48,10 @@ polyfit = np.polyfit(omega - omega0, gvd[:, 1], deg=3)
 polyfit = polyfit[::-1]  # lowest order first
 
 # %% ------------- pulse ------------------------------------------------------
+loss_ins = 10 ** (-0.7 / 10)
+loss_spl = 10 ** (-0.2 / 10)
 f_r = 1e9
-e_p = 1e-3 / f_r
+e_p = 25e-3 / f_r * loss_ins * loss_spl
 
 n = 256
 v_min = c / 1700e-9
@@ -96,7 +98,7 @@ model_fwd = edf.generate_model(pulse, Pp_fwd=2.0)
 sim_fwd = model_fwd.simulate(2.0, n_records=100)
 
 # %% ----- solve via iteration ------------------------------------------------
-Pp = 2.0
+Pp = 2.0 * loss_ins * loss_spl
 length = 2.0
 
 direction = 1
@@ -174,7 +176,7 @@ while not done:
 # %% ------------------- look at results --------------------------------------
 sim = sim_fwd
 sol_Pp = sim.Pp
-sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1)
+sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1) * loss_ins * loss_spl
 z = sim.z
 n1 = sim.n1_n
 n2 = sim.n2_n

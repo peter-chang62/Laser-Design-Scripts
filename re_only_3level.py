@@ -106,7 +106,7 @@ sigma_p = spl_sigma_a(c / 980e-9)
 loss_ins = 10 ** (-0.7 / 10)
 loss_spl = 10 ** (-0.2 / 10)
 f_r = 100e6
-e_p = 1e-3 / f_r * loss_ins * loss_spl
+e_p = 25e-3 / f_r * loss_ins * loss_spl
 
 n = 256
 v_min = c / 1700e-9
