@@ -92,11 +92,11 @@ gamma_edf = 0
 edf.gamma = gamma_edf / (W * km)
 
 # %% ----------- base case forward sim had better work ------------------------
-model, dz = edf.generate_model(
+model = edf.generate_model(
     pulse,
     Pp_fwd=2,
 )
-sim = model.simulate(4, dz=dz, n_records=100)
+sim = model.simulate(4, n_records=100)
 
 # %% ----- plot results
 sol_Pp = sim.Pp

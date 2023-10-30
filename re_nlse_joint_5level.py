@@ -582,7 +582,7 @@ class Model_EDF(pynlo.model.Model):
         return a_v, z, dz, k5_v, cont
 
     @package_sim_output
-    def simulate(self, z_grid, dz=None, local_error=1e-6, n_records=None, plot=None):
+    def simulate(self, z_grid, local_error=1e-6, n_records=None, plot=None):
         """
         Simulate propagation of the input pulse through the optical mode.
 
@@ -594,8 +594,6 @@ class Model_EDF(pynlo.model.Model):
             step-size algorithm is used to propagate between these points. If
             only the end point is given the starting point is assumed to be the
             origin.
-        dz : float, optional
-            The initial step size. If ``None``, one will be estimated.
         local_error : float, optional
             The target relative local error for the adaptive step size
             algorithm. The default is 1e-6.
@@ -774,8 +772,8 @@ class NLSE(pynlo.model.NLSE):
         a_v = np.fft.fftshift(a_v)
         return a_v, z, dz, k5_v, cont
 
-    def simulate(self, z_grid, dz=None, local_error=1e-6, n_records=None, plot=None):
-        return Model_EDF.simulate(self, z_grid, dz, local_error, n_records, plot)
+    def simulate(self, z_grid, local_error=1e-6, n_records=None, plot=None):
+        return Model_EDF.simulate(self, z_grid, local_error, n_records, plot)
 
 
 class EDF(pynlo.materials.SilicaFiber):
@@ -952,6 +950,5 @@ class EDF(pynlo.materials.SilicaFiber):
 
         # print("USING NLSE")
         model = NLSE(pulse, mode)
-        dz = model.estimate_step_size()
         model.mode.setup_rk45_Pp(1e-3)
-        return model, dz
+        return model
