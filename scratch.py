@@ -7,6 +7,7 @@ import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
+import edfa
 import time
 
 ns = 1e-9
@@ -92,13 +93,18 @@ gamma_edf = 0
 edf.gamma = gamma_edf / (W * km)
 
 # %% ----------- base case forward sim had better work ------------------------
-model = edf.generate_model(
-    pulse,
-    Pp_fwd=2,
+model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+    p_fwd=pulse,
+    p_bck=pulse,
+    edf=edf,
+    length=2,
+    Pp_fwd=0,
+    Pp_bck=2,
+    n_records=100,
 )
-sim = model.simulate(4, n_records=100)
 
 # %% ----- plot results
+sim = sim_fwd
 sol_Pp = sim.Pp
 sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1)
 z = sim.z

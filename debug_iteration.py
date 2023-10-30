@@ -99,7 +99,7 @@ sim_fwd = model_fwd.simulate(2.0, n_records=100)
 Pp = 2.0
 length = 2.0
 
-direction = 1
+direction = -1
 
 p_1 = pulse.copy()
 p_2 = pulse.copy()
