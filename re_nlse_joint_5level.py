@@ -678,9 +678,7 @@ class Model_EDF(pynlo.model.Model):
         g_v[0, :] = self.mode.gain(None, None)
 
         # Step Size
-        if dz is None:
-            dz = self.estimate_step_size(pulse_out.a_v, z, local_error)
-            print("Initial Step Size:\t{:.3g}m".format(dz))
+        dz = 1e-3
 
         # Plotting
         if plot is not None:
