@@ -9,6 +9,7 @@ from re_nlse_joint_5level import EDF
 import edfa
 import collections
 from scipy.interpolate import InterpolatedUnivariateSpline
+import blit
 
 ns = 1e-9
 ps = 1e-12
@@ -137,7 +138,7 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 4.5
+D_rt = 7
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
@@ -151,19 +152,18 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 450 * 1e-3
+Pp = 500 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 
 # set up plot
-fig, ax = plt.subplots(2, 2)
+fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km")
 ax[0, 0].set_xlabel("wavelength (nm)")
 ax[1, 0].set_xlabel("wavelength (nm)")
 ax[0, 1].set_xlabel("time (ps)")
 ax[1, 1].set_xlabel("time (ps)")
 
 loop_count = 0
-do_backward_pump = False
 include_loss = True
 done = False
 tol = 1e-3
@@ -236,18 +236,46 @@ while not done:
 
     # update plot
     if loop_count == 0:
-        (l1,) = ax[0, 0].plot(p_out.wl_grid * 1e9, p_out.p_v / p_out.p_v.max())
-        (l2,) = ax[0, 1].plot(p_out.t_grid * 1e12, p_out.p_t / p_out.p_t.max())
-        (l3,) = ax[1, 0].plot(p_s.wl_grid * 1e9, p_s.p_v / p_s.p_v.max())
-        (l4,) = ax[1, 1].plot(p_s.t_grid * 1e12, p_s.p_t / p_s.p_t.max())
+        (l1,) = ax[0, 0].plot(
+            p_out.wl_grid * 1e9,
+            p_out.p_v / p_out.p_v.max(),
+            animated=True,
+        )
+        (l2,) = ax[0, 1].plot(
+            p_out.t_grid * 1e12,
+            p_out.p_t / p_out.p_t.max(),
+            animated=True,
+        )
+        (l3,) = ax[1, 0].plot(
+            p_s.wl_grid * 1e9,
+            p_s.p_v / p_s.p_v.max(),
+            animated=True,
+        )
+        (l4,) = ax[1, 1].plot(
+            p_s.t_grid * 1e12,
+            p_s.p_t / p_s.p_t.max(),
+            animated=True,
+        )
+        fr_number = ax[0, 0].annotate(
+            "0",
+            (0, 1),
+            xycoords="axes fraction",
+            xytext=(10, -10),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            animated=True,
+        )
         fig.tight_layout()
-        plt.pause(0.01)
+        bm = blit.BlitManager(fig.canvas, [l1, l2, l3, l4, fr_number])
+        bm.update()
     else:
         l1.set_ydata(p_out.p_v / p_out.p_v.max())
         l2.set_ydata(p_out.p_t / p_out.p_t.max())
         l3.set_ydata(p_s.p_v / p_s.p_v.max())
         l4.set_ydata(p_s.p_t / p_s.p_t.max())
-        plt.pause(0.01)
+        fr_number.set_text(f"loop #: {loop_count}")
+        bm.update()
 
     if loop_count == 500:
         done = True
