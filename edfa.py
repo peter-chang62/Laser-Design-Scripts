@@ -1,13 +1,7 @@
 # %% ----- imports
-from scipy.constants import c
-import pandas as pd
-import clipboard
 from re_nlse_joint_5level import EDF
-import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
-import matplotlib.pyplot as plt
-import time
 
 
 def propagate_amp(
