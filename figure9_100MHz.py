@@ -20,7 +20,7 @@ km = 1e3
 W = 1.0
 
 output = collections.namedtuple("output", ["model", "sim"])
-n_records = None
+n_records = 100
 
 
 def propagate(fiber, pulse, length):
@@ -156,7 +156,11 @@ phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 
 # set up plot
-fig, ax = plt.subplots(2, 2)
+# fig, ax = plt.subplots(2, 2)
+# ax[0, 0].set_xlabel("wavelength (nm)")
+# ax[1, 0].set_xlabel("wavelength (nm)")
+# ax[0, 1].set_xlabel("time (ps)")
+# ax[1, 1].set_xlabel("time (ps)")
 
 loop_count = 0
 do_backward_pump = False
@@ -231,18 +235,19 @@ while not done:
     p_s.a_t[:] = np.roll(p_s.a_t, center - p_s.p_t.argmax())
 
     # update plot
-    if loop_count == 0:
-        (l1,) = ax[0, 0].plot(p_out.wl_grid * 1e9, p_out.p_v / p_out.p_v.max())
-        (l2,) = ax[0, 1].plot(p_out.t_grid * 1e12, p_out.p_t / p_out.p_t.max())
-        (l3,) = ax[1, 0].plot(p_s.wl_grid * 1e9, p_s.p_v / p_s.p_v.max())
-        (l4,) = ax[1, 1].plot(p_s.t_grid * 1e12, p_s.p_t / p_s.p_t.max())
-        plt.pause(0.01)
-    else:
-        l1.set_ydata(p_out.p_v / p_out.p_v.max())
-        l2.set_ydata(p_out.p_t / p_out.p_t.max())
-        l3.set_ydata(p_s.p_v / p_s.p_v.max())
-        l4.set_ydata(p_s.p_t / p_s.p_t.max())
-        plt.pause(0.01)
+    # if loop_count == 0:
+    #     (l1,) = ax[0, 0].plot(p_out.wl_grid * 1e9, p_out.p_v / p_out.p_v.max())
+    #     (l2,) = ax[0, 1].plot(p_out.t_grid * 1e12, p_out.p_t / p_out.p_t.max())
+    #     (l3,) = ax[1, 0].plot(p_s.wl_grid * 1e9, p_s.p_v / p_s.p_v.max())
+    #     (l4,) = ax[1, 1].plot(p_s.t_grid * 1e12, p_s.p_t / p_s.p_t.max())
+    #     fig.tight_layout()
+    #     plt.pause(0.01)
+    # else:
+    #     l1.set_ydata(p_out.p_v / p_out.p_v.max())
+    #     l2.set_ydata(p_out.p_t / p_out.p_t.max())
+    #     l3.set_ydata(p_s.p_v / p_s.p_v.max())
+    #     l4.set_ydata(p_s.p_t / p_s.p_t.max())
+    #     plt.pause(0.01)
 
     if loop_count == 500:
         done = True

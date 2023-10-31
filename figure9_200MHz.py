@@ -131,8 +131,8 @@ D_p = 18
 l_t = c / 1.5 / f_r  # total cavity length
 
 # ----- target round trip dispersion in the loop
-# D_l = 7
-# l_p_s = 0.11  # shortest straight section I can do
+# D_l = 2
+# l_p_s = 0.15  # shortest straight section I can do
 # l_g = (D_l - D_p) * (l_t - 2 * l_p_s) / (D_g - D_p)
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
@@ -151,12 +151,16 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 400 * 1e-3
+Pp = 450 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 
 # set up plot
 fig, ax = plt.subplots(2, 2)
+ax[0, 0].set_xlabel("wavelength (nm)")
+ax[1, 0].set_xlabel("wavelength (nm)")
+ax[0, 1].set_xlabel("time (ps)")
+ax[1, 1].set_xlabel("time (ps)")
 
 loop_count = 0
 do_backward_pump = False
@@ -236,6 +240,7 @@ while not done:
         (l2,) = ax[0, 1].plot(p_out.t_grid * 1e12, p_out.p_t / p_out.p_t.max())
         (l3,) = ax[1, 0].plot(p_s.wl_grid * 1e9, p_s.p_v / p_s.p_v.max())
         (l4,) = ax[1, 1].plot(p_s.t_grid * 1e12, p_s.p_t / p_s.p_t.max())
+        fig.tight_layout()
         plt.pause(0.01)
     else:
         l1.set_ydata(p_out.p_v / p_out.p_v.max())
