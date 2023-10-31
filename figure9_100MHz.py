@@ -58,12 +58,12 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 
 
 # %% -------------- load dispersion coefficients ------------------------------
-# frame = pd.read_excel(
-#     "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
-# )
 frame = pd.read_excel(
-    "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+    "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
 )
+# frame = pd.read_excel(
+#     "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+# )
 gvd = frame.to_numpy()[:, :2][1:].astype(float)
 
 wl = gvd[:, 0] * 1e-9
@@ -105,7 +105,7 @@ pm1550.gamma = gamma_pm1550 / (W * km)
 tau = 9 * ms
 r_eff = 3.06 * um / 2
 a_eff = np.pi * r_eff**2
-n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
 sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
@@ -151,7 +151,7 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 60 * 1e-3
+Pp = 75 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 
