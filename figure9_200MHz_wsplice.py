@@ -125,7 +125,7 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 5.0
+D_rt = 7
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
@@ -135,7 +135,7 @@ l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 l_g_a = 0.4 - l_g  # target 50 cm gain fiber total
 l_p_l -= l_g_a
 
-assert np.all(np.array([l_g, l_p_s, l_p_l]) >= 0)
+assert np.all(np.array([l_g, l_p_s, l_p_l, l_g_a]) >= 0)
 
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
@@ -154,14 +154,14 @@ edf = EDF(
     f_r=f_r,
     overlap_p=1.0,
     overlap_s=1.0,
-    n_ion_1=n_ion_n,
-    n_ion_2=n_ion_a,
-    z_spl=l_g,
+    n_ion_1=n_ion_a,
+    n_ion_2=n_ion_n,
+    z_spl=l_g_a,
     loss_spl=loss,
-    a_eff_1=a_eff_n,
-    a_eff_2=a_eff_a,
-    gamma_1=gamma_edf_n / (W * km),
-    gamma_2=gamma_edf_a / (W * km),
+    a_eff_1=a_eff_a,
+    a_eff_2=a_eff_n,
+    gamma_1=gamma_edf_a / (W * km),
+    gamma_2=gamma_edf_n / (W * km),
     sigma_p=sigma_p,
     sigma_a=sigma_a,
     sigma_e=sigma_e,
@@ -179,7 +179,7 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 500 * 1e-3
+Pp = 400 * 1e-3
 phi = np.pi / 2
 
 # set up plot
@@ -215,8 +215,8 @@ while not done:
     model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
         p_fwd=p_gf,
         p_bck=p_pf,
-        beta_1=beta_n,
-        beta_2=beta_a,
+        beta_1=beta_a,
+        beta_2=beta_n,
         edf=edf,
         length=l_g + l_g_a,
         Pp_fwd=Pp,
