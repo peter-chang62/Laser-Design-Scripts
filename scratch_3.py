@@ -83,14 +83,14 @@ r_eff_1 = 3.06 * um / 2
 r_eff_2 = 8.05 * um / 2
 a_eff_1 = np.pi * r_eff_1**2
 a_eff_2 = np.pi * r_eff_2**2
-n_ion_1 = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion_1 = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 n_ion_2 = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
 sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
-z_spl = 1.0
+z_spl = 1
 
 edf = EDF(
     f_r=f_r,
@@ -102,8 +102,8 @@ edf = EDF(
     loss_spl=10 ** (-0.7 / 10),
     a_eff_1=a_eff_1,
     a_eff_2=a_eff_2,
-    gamma_1=6.5 / (W * km),
-    gamma_2=1 / (W * km),
+    gamma_1=1 / (W * km),
+    gamma_2=6.5 / (W * km),
     sigma_p=sigma_p,
     sigma_a=sigma_a,
     sigma_e=sigma_e,
@@ -112,7 +112,6 @@ edf.set_beta_from_beta_n(v0, polyfit_1)
 beta_1 = edf._beta(pulse.v_grid)
 edf.set_beta_from_beta_n(v0, polyfit_2)
 beta_2 = edf.beta(pulse.v_grid)
-beta = lambda z: beta_1 if z < z_spl else beta_2
 
 # %% --------- edfa forward only ---------
 # model = edf.generate_model(
@@ -126,11 +125,11 @@ beta = lambda z: beta_1 if z < z_spl else beta_2
 # %% ----------- edfa ---------------------------------------------------------
 model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_fwd=pulse,
-    p_bck=None,
+    p_bck=pulse,
     beta_1=beta_1,
     beta_2=beta_2,
     edf=edf,
-    length=2,
+    length=2.0,
     Pp_fwd=0 * loss_ins * loss_spl,
     Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,

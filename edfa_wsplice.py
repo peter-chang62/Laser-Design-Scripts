@@ -1,5 +1,5 @@
 # %% ----- imports
-from re_nlse_joint_5level_splice import EDF
+from re_nlse_joint_5level_wsplice import EDF
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import copy
@@ -52,13 +52,15 @@ def amplify(p_fwd, p_bck, beta_1, beta_2, edf, length, Pp_fwd, Pp_bck, n_records
         sigma_a=edf.sigma_a,
         sigma_e=edf.sigma_e,
     )
+
+    # swap 2 <-> 1, and z_spl -> length - z_spl
     edf_2 = EDF(
         f_r=edf.f_r,
         overlap_p=edf.overlap_p,
         overlap_s=edf.overlap_s,
         n_ion_1=edf._n_ion_2,
         n_ion_2=edf._n_ion_1,
-        z_spl=edf.z_spl,
+        z_spl=length - edf.z_spl,
         loss_spl=edf.loss_spl,
         a_eff_1=edf._a_eff_2,
         a_eff_2=edf._a_eff_1,
@@ -142,9 +144,14 @@ def amplify(p_fwd, p_bck, beta_1, beta_2, edf, length, Pp_fwd, Pp_bck, n_records
             rk45 = model_bck.mode.rk45_Pp
             t = [rk45.t]
             y = [rk45.y[0]]
+            loss_applied = False
             while rk45.t < length:
                 model_bck.mode.z = rk45.t  # update z-dependent parameter
                 rk45.step()
+                if rk45.t >= edf_2.z_spl:
+                    if not loss_applied:
+                        rk45.y *= edf_2.loss_spl
+                        loss_applied = True
                 t.append(rk45.t)
                 y.append(rk45.y[0])
             t = np.asarray(t)

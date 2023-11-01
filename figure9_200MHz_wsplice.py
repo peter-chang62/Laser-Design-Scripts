@@ -5,8 +5,8 @@ import pynlo
 import clipboard
 import pandas as pd
 from scipy.constants import c
-from re_nlse_joint_5level import EDF
-import edfa
+from re_nlse_joint_5level_wsplice import EDF
+import edfa_wsplice as edfa
 import collections
 from scipy.interpolate import InterpolatedUnivariateSpline
 import blit
@@ -21,7 +21,8 @@ km = 1e3
 W = 1.0
 
 output = collections.namedtuple("output", ["model", "sim"])
-n_records = None
+n_records = 100
+loss = 10 ** -(0.7 / 10)
 
 
 def propagate(fiber, pulse, length):
@@ -59,19 +60,26 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 
 
 # %% -------------- load dispersion coefficients ------------------------------
-# frame = pd.read_excel(
-#     "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
-# )
-frame = pd.read_excel(
+frame_normal = pd.read_excel(
     "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
 )
-gvd = frame.to_numpy()[:, :2][1:].astype(float)
+frame_anomalous = pd.read_excel(
+    "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
+)
+gvd_n = frame_normal.to_numpy()[:, :2][1:].astype(float)
+gvd_a = frame_anomalous.to_numpy()[:, :2][1:].astype(float)
 
-wl = gvd[:, 0] * 1e-9
+wl = gvd_n[:, 0] * 1e-9
 omega = 2 * np.pi * c / wl
 omega0 = 2 * np.pi * c / 1560e-9
-polyfit = np.polyfit(omega - omega0, gvd[:, 1], deg=3)
-polyfit = polyfit[::-1]  # lowest order first
+polyfit_n = np.polyfit(omega - omega0, gvd_n[:, 1], deg=3)
+polyfit_n = polyfit_n[::-1]  # lowest order first
+
+wl = gvd_a[:, 0] * 1e-9
+omega = 2 * np.pi * c / wl
+omega0 = 2 * np.pi * c / 1560e-9
+polyfit_a = np.polyfit(omega - omega0, gvd_a[:, 1], deg=3)
+polyfit_a = polyfit_a[::-1]  # lowest order first
 
 # %% ------------- pulse ------------------------------------------------------
 f_r = 200e6
@@ -97,37 +105,15 @@ dv_dl = pulse.v_grid**2 / c
 
 # %% --------- passive fibers -------------------------------------------------
 gamma_pm1550 = 1.2
-gamma_edf = 6.5
+gamma_edf_n = 6.5
+gamma_edf_a = 1.2
 
 pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = gamma_pm1550 / (W * km)
 
-# %% ------------ active fiber ------------------------------------------------
-tau = 9 * ms
-r_eff = 3.06 * um / 2
-a_eff = np.pi * r_eff**2
-n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
-
-sigma_a = spl_sigma_a(pulse.v_grid)
-sigma_e = spl_sigma_e(pulse.v_grid)
-sigma_p = spl_sigma_a(c / 980e-9)
-
-edf = EDF(
-    f_r=f_r,
-    overlap_p=1.0,
-    overlap_s=1.0,
-    n_ion=n_ion,
-    a_eff=a_eff,
-    sigma_p=sigma_p,
-    sigma_a=sigma_a,
-    sigma_e=sigma_e,
-)
-edf.set_beta_from_beta_n(v0, polyfit)  # only gdd
-edf.gamma = gamma_edf / (W * km)
-
 # %% ------- figure 9 laser cavity --------------------------------------------
-beta2_g = polyfit[0]
+beta2_g = polyfit_n[0]
 D_g = -2 * np.pi * c / 1560e-9**2 * beta2_g / ps * nm * km
 D_p = 18
 l_t = c / 1.5 / f_r  # total cavity length
@@ -139,14 +125,54 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 7
+D_rt = 5.0
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
+# ----- replace l_p_l for anomalous gain fiber
+l_g_a = 0.4 - l_g  # target 50 cm gain fiber total
+l_p_l -= l_g_a
+
 assert np.all(np.array([l_g, l_p_s, l_p_l]) >= 0)
 
+# %% ------------ active fiber ------------------------------------------------
+tau = 9 * ms
+r_eff_n = 3.06 * um / 2
+r_eff_a = 8.05 * um / 2
+a_eff_n = np.pi * r_eff_n**2
+a_eff_a = np.pi * r_eff_a**2
+n_ion_n = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion_a = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+
+sigma_a = spl_sigma_a(pulse.v_grid)
+sigma_e = spl_sigma_e(pulse.v_grid)
+sigma_p = spl_sigma_a(c / 980e-9)
+
+edf = EDF(
+    f_r=f_r,
+    overlap_p=1.0,
+    overlap_s=1.0,
+    n_ion_1=n_ion_n,
+    n_ion_2=n_ion_a,
+    z_spl=l_g,
+    loss_spl=loss,
+    a_eff_1=a_eff_n,
+    a_eff_2=a_eff_a,
+    gamma_1=gamma_edf_n / (W * km),
+    gamma_2=gamma_edf_a / (W * km),
+    sigma_p=sigma_p,
+    sigma_a=sigma_a,
+    sigma_e=sigma_e,
+)
+
+edf.set_beta_from_beta_n(v0, polyfit_n)
+beta_n = edf.beta(pulse.v_grid)
+edf.set_beta_from_beta_n(v0, polyfit_a)
+beta_a = edf.beta(pulse.v_grid)
+
+# %% ------------ simulate! ---------------------------------------------------
 p_gf = pulse.copy()  # gain first
 p_pf = pulse.copy()  # passive first
 p_s = pulse.copy()  # straight section
@@ -155,7 +181,6 @@ p_out = pulse.copy()
 # parameters
 Pp = 500 * 1e-3
 phi = np.pi / 2
-loss = 10 ** -(0.7 / 10)
 
 # set up plot
 fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km")
@@ -190,8 +215,10 @@ while not done:
     model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
         p_fwd=p_gf,
         p_bck=p_pf,
+        beta_1=beta_n,
+        beta_2=beta_a,
         edf=edf,
-        length=l_g,
+        length=l_g + l_g_a,
         Pp_fwd=Pp,
         Pp_bck=0.0,
         n_records=n_records,
