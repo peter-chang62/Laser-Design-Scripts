@@ -47,7 +47,7 @@ ax.set_xlim(1450, 1650)
 fig.tight_layout()
 
 # %% -----
-D = 3.0
+D = 7
 p_v = np.load(path + f"p_v_{float(D)}_psnmkm_200MHz_ls_11cm.npy")
 p_t = np.load(path + f"p_t_{float(D)}_psnmkm_200MHz_ls_11cm.npy")
 p_wl_plot = p_v * dv_dl * f_r * 1e-9 * 1e3
