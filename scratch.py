@@ -7,7 +7,7 @@ import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
-import edfa
+import edfa as edfa
 import time
 
 ns = 1e-9
@@ -105,6 +105,16 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     n_records=100,
 )
 
+# model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+#     p_fwd=pulse,
+#     p_bck=None,
+#     edf=edf,
+#     length=2,
+#     Pp_fwd=2 * loss_ins * loss_spl,
+#     Pp_bck=0 * loss_ins * loss_spl,
+#     n_records=100,
+# )
+
 # %% ----- plot results
 sim = sim_fwd
 sol_Pp = sim.Pp
@@ -121,18 +131,18 @@ fig = plt.figure(
 )
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
-(line_11,) = ax1.plot(z, sol_Pp, label="pump", linewidth=2)
-(line_12,) = ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
+ax1.plot(z, sol_Pp, label="pump", linewidth=2)
+ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
 ax1.grid()
-ax1.legend(loc="best")
+ax1.legend(loc="upper left")
 ax1.set_xlabel("position (m)")
 ax1.set_ylabel("power (W)")
 
-(line_21,) = ax2.plot(z, n1, label="n1", linewidth=2)
-(line_22,) = ax2.plot(z, n2, label="n2", linewidth=2)
-(line_23,) = ax2.plot(z, n3, label="n3", linewidth=2)
-(line_24,) = ax2.plot(z, n4, label="n4", linewidth=2)
-(line_25,) = ax2.plot(z, n5, label="n5", linewidth=2)
+ax2.plot(z, n1, label="n1", linewidth=2)
+ax2.plot(z, n2, label="n2", linewidth=2)
+ax2.plot(z, n3, label="n3", linewidth=2)
+ax2.plot(z, n4, label="n4", linewidth=2)
+ax2.plot(z, n5, label="n5", linewidth=2)
 ax2.grid()
 ax2.legend(loc="best")
 ax2.set_xlabel("position (m)")
