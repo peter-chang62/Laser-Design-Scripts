@@ -93,6 +93,7 @@ pulse = pynlo.light.Pulse.Sech(
     min_time_window,
     alias=2,
 )
+dv_dl = pulse.v_grid**2 / c
 
 # %% --------- passive fibers -------------------------------------------------
 gamma_pm1550 = 1.2
@@ -239,7 +240,7 @@ while not done:
     if loop_count == 0:
         (l1,) = ax[0, 0].plot(
             p_out.wl_grid * 1e9,
-            p_out.p_v / p_out.p_v.max(),
+            p_out.p_v / p_out.p_v.max() * dv_dl,
             animated=True,
         )
         (l2,) = ax[0, 1].plot(
@@ -249,7 +250,7 @@ while not done:
         )
         (l3,) = ax[1, 0].plot(
             p_s.wl_grid * 1e9,
-            p_s.p_v / p_s.p_v.max(),
+            p_s.p_v / p_s.p_v.max() * dv_dl,
             animated=True,
         )
         (l4,) = ax[1, 1].plot(
@@ -271,9 +272,9 @@ while not done:
         bm = blit.BlitManager(fig.canvas, [l1, l2, l3, l4, fr_number])
         bm.update()
     else:
-        l1.set_ydata(p_out.p_v / p_out.p_v.max())
+        l1.set_ydata(p_out.p_v / p_out.p_v.max() * dv_dl)
         l2.set_ydata(p_out.p_t / p_out.p_t.max())
-        l3.set_ydata(p_s.p_v / p_s.p_v.max())
+        l3.set_ydata(p_s.p_v / p_s.p_v.max() * dv_dl)
         l4.set_ydata(p_s.p_t / p_s.p_t.max())
         fr_number.set_text(f"loop #: {loop_count}")
         bm.update()

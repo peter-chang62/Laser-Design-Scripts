@@ -5,3 +5,4 @@ __pycache__/
 ~$memo.pptx
 .spyproject/
 ipython_notebooks/.ipynb_checkpoints/
+fig/
