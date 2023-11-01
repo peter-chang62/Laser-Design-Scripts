@@ -132,7 +132,12 @@ class Mode(pynlo.media.Mode):
         f_r=100e6,
         overlap_p=1.0,
         overlap_s=1.0,
-        n_ion=7e24,
+        # --------- accounting for splicing of two doped fibers -----
+        n_ion_1=7e24,
+        n_ion_2=7e24,
+        z_spl=0.0,
+        loss_spl=0.0,
+        # -----------------------------------------------------------
         a_eff=3.14e-12,
         sigma_p=None,
         sigma_a=None,
@@ -164,7 +169,10 @@ class Mode(pynlo.media.Mode):
         self.f_r = f_r
         self.overlap_p = overlap_p
         self.overlap_s = overlap_s
-        self.n_ion = n_ion
+        self._n_ion_1 = n_ion_1
+        self._n_ion_2 = n_ion_2
+        self.z_spl = z_spl
+        self.loss_spl = loss_spl  # to be applied in model when z=z_spl
         self.a_eff = a_eff
         self.sigma_p = sigma_p
         self.sigma_a = sigma_a
@@ -203,6 +211,13 @@ class Mode(pynlo.media.Mode):
         # __init__ sets _p_v to None, so assign this after the __init__ call
         self.p_v = p_v
         self.dv = self.v_grid[1] - self.v_grid[0]
+
+    @property
+    def n_ion(self):
+        if self.z < self.z_spl:
+            return self._n_ion_1
+        else:
+            return self._n_ion_2
 
     @property
     def tau_21(self):
@@ -448,6 +463,7 @@ class Model_EDF(pynlo.model.Model):
         self._sum_a_record = []
         self._sum_e_record = []
         self._z_record = []
+        self.loss_spl_applied = False
 
     @property
     def Pp_record(self):
@@ -572,6 +588,12 @@ class Model_EDF(pynlo.model.Model):
                     p_v = np.fft.fftshift(p_v)
                 self.mode.p_v[:] = p_v[:]
                 self.mode.update_Pp()
+
+                # apply loss if z > z_spl
+                if z > self.mode.z_spl:
+                    if not self.loss_spl_applied:
+                        a_v *= self.mode.loss_spl**0.5
+                        self.loss_spl_applied = True
 
                 # record values for future sims
                 self._sum_a_record.append(self.mode._sum_a)
@@ -782,7 +804,12 @@ class EDF(pynlo.materials.SilicaFiber):
         f_r=100e6,
         overlap_p=1.0,
         overlap_s=1.0,
-        n_ion=7e24,
+        # --------- accounting for splicing of two doped fibers -----
+        n_ion_1=7e24,
+        n_ion_2=7e24,
+        z_spl=0.0,
+        loss_spl=0.0,
+        # -----------------------------------------------------------
         a_eff=3.14e-12,
         sigma_p=None,
         sigma_a=None,
@@ -800,7 +827,10 @@ class EDF(pynlo.materials.SilicaFiber):
         self.f_r = f_r
         self.overlap_p = overlap_p
         self.overlap_s = overlap_s
-        self.n_ion = n_ion
+        self._n_ion_1 = n_ion_1
+        self._n_ion_2 = n_ion_2
+        self.z_spl = z_spl
+        self.loss_spl = loss_spl
         self.a_eff = a_eff
         self.sigma_p = sigma_p
         self.sigma_a = sigma_a
@@ -930,7 +960,10 @@ class EDF(pynlo.materials.SilicaFiber):
             f_r=self.f_r,
             overlap_p=self.overlap_p,
             overlap_s=self.overlap_s,
-            n_ion=self.n_ion,
+            n_ion_1=self._n_ion_1,
+            n_ion_2=self._n_ion_2,
+            z_spl=self.z_spl,
+            loss_spl=self.loss_spl,
             a_eff=self.a_eff,
             sigma_p=self.sigma_p,
             sigma_a=self.sigma_a,
