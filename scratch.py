@@ -2,12 +2,12 @@
 from scipy.constants import c
 import pandas as pd
 import clipboard
-from re_nlse_joint_5level import EDF
+from re_nlse_joint_5level_wASE import EDF
 import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
-import edfa
+import edfa_wASE as edfa
 import time
 
 ns = 1e-9
@@ -104,6 +104,16 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,
 )
+
+# model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+#     p_fwd=pulse,
+#     p_bck=None,
+#     edf=edf,
+#     length=2,
+#     Pp_fwd=2 * loss_ins * loss_spl,
+#     Pp_bck=0 * loss_ins * loss_spl,
+#     n_records=100,
+# )
 
 # %% ----- plot results
 sim = sim_fwd

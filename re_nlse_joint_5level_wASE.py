@@ -39,6 +39,7 @@ SimulationResult = collections.namedtuple(
         "z",
         "a_t",
         "a_v",
+        "P_v_ase",
         "Pp",
         "n1_n",
         "n2_n",
@@ -52,9 +53,20 @@ SimulationResult = collections.namedtuple(
 
 def package_sim_output(simulate):
     def wrapper(self, *args, **kwargs):
-        (pulse_out, z, a_t, a_v, Pp, n1_n, n2_n, n3_n, n4_n, n5_n, g_v) = simulate(
-            self, *args, **kwargs
-        )
+        (
+            pulse_out,
+            z,
+            a_t,
+            a_v,
+            P_v_ase,
+            Pp,
+            n1_n,
+            n2_n,
+            n3_n,
+            n4_n,
+            n5_n,
+            g_v,
+        ) = simulate(self, *args, **kwargs)
         model = self
 
         class result:
@@ -65,6 +77,7 @@ def package_sim_output(simulate):
                 self.a_v = a_v
                 self.p_t = abs(a_t) ** 2
                 self.p_v = abs(a_v) ** 2
+                self.P_v_ase = P_v_ase
                 self.phi_v = np.angle(a_v)
                 self.phi_t = np.angle(a_t)
                 self.Pp = Pp
@@ -204,6 +217,8 @@ class Mode(pynlo.media.Mode):
         self.p_v = p_v
         self.dv = self.v_grid[1] - self.v_grid[0]
 
+        self._P_ase = np.zeros(self.v_grid.size)
+
     @property
     def tau_21(self):
         return self._tau_21
@@ -267,6 +282,7 @@ class Mode(pynlo.media.Mode):
     @property
     def _sum_a(self):
         p_s = self.f_r * self.p_v * self.dv
+        p_s += self.P_ase
         sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
         sum_a = np.sum(sum_a)
         return sum_a
@@ -274,6 +290,7 @@ class Mode(pynlo.media.Mode):
     @property
     def _sum_e(self):
         p_s = self.f_r * self.p_v * self.dv
+        p_s += self.P_ase
         sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
         sum_e = np.sum(sum_e)
         return sum_e
@@ -400,8 +417,10 @@ class Mode(pynlo.media.Mode):
             - self.sigma_a * self.eps_s * self.n2
         ) * self.overlap_s
 
-    def _dPp_dz(self, z, Pp):
-        deriv = (
+    def _dPp_dz(self, z, X):
+        Pp = X[0]
+        P_ase = X[1:]
+        dPp_dz = (
             (
                 -self.sigma_p * self.n1
                 + self.sigma_p * self.xi_p * self.n3
@@ -410,13 +429,24 @@ class Mode(pynlo.media.Mode):
             * self.overlap_p
             * Pp
         )
-        return deriv
+
+        dP_ase_dz = (
+            (
+                -self.sigma_a * self.n1
+                + self.sigma_e * self.n2
+                - self.sigma_a * self.eps_s * self.n2
+            )
+            * self.overlap_s
+            * P_ase
+            + self.overlap_s * self.sigma_e * self.n2 * 2 * h * self.v_grid * self.dv
+        )
+        return np.hstack((dPp_dz, dP_ase_dz))
 
     def setup_rk45(self, dz):
         self._rk45 = RK45(
             fun=self._dPp_dz,
             t0=self._z_start,
-            y0=np.array([self.Pp_fwd]),
+            y0=np.hstack((np.array([self.Pp_fwd]), self.P_ase)),
             t_bound=np.inf,
             max_step=dz,
         )
@@ -435,6 +465,12 @@ class Mode(pynlo.media.Mode):
         if self._rk45 is not None:
             self._Pp_fwd = self.rk45.y[0]
         return self._Pp_fwd
+
+    @property
+    def P_ase(self):
+        if self._rk45 is not None:
+            self._P_ase[:] = self.rk45.y[1:]
+        return self._P_ase
 
     def update_Pp(self):
         while self.rk45.t < self.z:
@@ -651,6 +687,10 @@ class Model_EDF(pynlo.model.Model):
         a_v_record = np.empty((n_records, pulse_out.n), dtype=complex)
         a_v_record[0, :] = pulse_out.a_v
 
+        # ASE power
+        P_v_ase_record = np.empty((n_records, pulse_out.n), dtype=float)
+        P_v_ase_record[0, :] = 0
+
         # Time Domain
         a_t_record = np.empty((n_records, pulse_out.n), dtype=complex)
         a_t_record[0, :] = pulse_out.a_t
@@ -700,6 +740,7 @@ class Model_EDF(pynlo.model.Model):
                 idx = z_record[z]
                 a_t_record[idx, :] = pulse_out.a_t
                 a_v_record[idx, :] = pulse_out.a_v
+                P_v_ase_record[idx, :] = self.mode.P_ase
                 Pp[idx] = self.mode.Pp_fwd
                 n1_n[idx] = self.mode.n1 / self.mode.n_ion
                 n2_n[idx] = self.mode.n2 / self.mode.n_ion
@@ -723,6 +764,7 @@ class Model_EDF(pynlo.model.Model):
             z=np.fromiter(z_record.keys(), dtype=float),
             a_t=a_t_record,
             a_v=a_v_record,
+            P_v_ase=P_v_ase_record,
             Pp=Pp,
             n1_n=n1_n,
             n2_n=n2_n,
