@@ -39,6 +39,7 @@ SimulationResult = collections.namedtuple(
         "z",
         "a_t",
         "a_v",
+        "P_v_ase",
         "Pp",
         "n1_n",
         "n2_n",
@@ -52,9 +53,20 @@ SimulationResult = collections.namedtuple(
 
 def package_sim_output(simulate):
     def wrapper(self, *args, **kwargs):
-        (pulse_out, z, a_t, a_v, Pp, n1_n, n2_n, n3_n, n4_n, n5_n, g_v) = simulate(
-            self, *args, **kwargs
-        )
+        (
+            pulse_out,
+            z,
+            a_t,
+            a_v,
+            P_v_ase,
+            Pp,
+            n1_n,
+            n2_n,
+            n3_n,
+            n4_n,
+            n5_n,
+            g_v,
+        ) = simulate(self, *args, **kwargs)
         model = self
 
         class result:
@@ -65,6 +77,7 @@ def package_sim_output(simulate):
                 self.a_v = a_v
                 self.p_t = abs(a_t) ** 2
                 self.p_v = abs(a_v) ** 2
+                self.P_v_ase = P_v_ase
                 self.phi_v = np.angle(a_v)
                 self.phi_t = np.angle(a_t)
                 self.Pp = Pp
@@ -132,14 +145,8 @@ class Mode(pynlo.media.Mode):
         f_r=100e6,
         overlap_p=1.0,
         overlap_s=1.0,
-        # --------- accounting for splicing of two doped fibers -----
-        n_ion_1=7e24,
-        n_ion_2=7e24,
-        z_spl=0.0,
-        loss_spl=0.0,
-        a_eff_1=3.14e-12,
-        a_eff_2=3.14e-12,
-        # -----------------------------------------------------------
+        n_ion=7e24,
+        a_eff=3.14e-12,
         sigma_p=None,
         sigma_a=None,
         sigma_e=None,
@@ -170,18 +177,14 @@ class Mode(pynlo.media.Mode):
         self.f_r = f_r
         self.overlap_p = overlap_p
         self.overlap_s = overlap_s
-        self._n_ion_1 = n_ion_1
-        self._n_ion_2 = n_ion_2
-        self.z_spl = z_spl
-        self.loss_spl = loss_spl  # to be applied in model when z=z_spl
-        self._a_eff_1 = a_eff_1
-        self._a_eff_2 = a_eff_2
+        self.n_ion = n_ion
+        self.a_eff = a_eff
         self.sigma_p = sigma_p
         self.sigma_a = sigma_a
         self.sigma_e = sigma_e
         self._Pp_fwd = Pp_fwd
         self._z_start = z
-        self._rk45_Pp = None
+        self._rk45 = None
 
         self._eps_p = eps_p
         self._xi_p = xi_p
@@ -214,19 +217,7 @@ class Mode(pynlo.media.Mode):
         self.p_v = p_v
         self.dv = self.v_grid[1] - self.v_grid[0]
 
-    @property
-    def n_ion(self):
-        if self.z < self.z_spl:
-            return self._n_ion_1
-        else:
-            return self._n_ion_2
-
-    @property
-    def a_eff(self):
-        if self.z < self.z_spl:
-            return self._a_eff_1
-        else:
-            return self._a_eff_2
+        self._P_ase = np.zeros(self.v_grid.size)
 
     @property
     def tau_21(self):
@@ -291,6 +282,7 @@ class Mode(pynlo.media.Mode):
     @property
     def _sum_a(self):
         p_s = self.f_r * self.p_v * self.dv
+        p_s += self.P_ase
         sum_a = self.overlap_s * p_s * self.sigma_a / (h * self.v_grid * self.a_eff)
         sum_a = np.sum(sum_a)
         return sum_a
@@ -298,6 +290,7 @@ class Mode(pynlo.media.Mode):
     @property
     def _sum_e(self):
         p_s = self.f_r * self.p_v * self.dv
+        p_s += self.P_ase
         sum_e = self.overlap_s * p_s * self.sigma_e / (h * self.v_grid * self.a_eff)
         sum_e = np.sum(sum_e)
         return sum_e
@@ -424,8 +417,10 @@ class Mode(pynlo.media.Mode):
             - self.sigma_a * self.eps_s * self.n2
         ) * self.overlap_s
 
-    def _dPp_dz(self, z, Pp):
-        deriv = (
+    def _dPp_dz(self, z, X):
+        Pp = X[0]
+        P_ase = X[1:]
+        dPp_dz = (
             (
                 -self.sigma_p * self.n1
                 + self.sigma_p * self.xi_p * self.n3
@@ -434,21 +429,32 @@ class Mode(pynlo.media.Mode):
             * self.overlap_p
             * Pp
         )
-        return deriv
 
-    def setup_rk45_Pp(self, dz):
-        self._rk45_Pp = RK45(
+        dP_ase_dz = (
+            (
+                -self.sigma_a * self.n1
+                + self.sigma_e * self.n2
+                - self.sigma_a * self.eps_s * self.n2
+            )
+            * self.overlap_s
+            * P_ase
+            + self.overlap_s * self.sigma_e * self.n2 * 2 * h * self.v_grid * self.dv
+        )
+        return np.hstack((dPp_dz, dP_ase_dz))
+
+    def setup_rk45(self, dz):
+        self._rk45 = RK45(
             fun=self._dPp_dz,
             t0=self._z_start,
-            y0=np.array([self.Pp_fwd]),
+            y0=np.hstack((np.array([self.Pp_fwd]), self.P_ase)),
             t_bound=np.inf,
             max_step=dz,
         )
 
     @property
-    def rk45_Pp(self):
-        assert self._rk45_Pp is not None, "setup rk45 by calling setup_rk45_Pp(dz)"
-        return self._rk45_Pp
+    def rk45(self):
+        assert self._rk45 is not None, "setup rk45 by calling setup_rk45(dz)"
+        return self._rk45
 
     @property
     def Pp(self):
@@ -456,13 +462,19 @@ class Mode(pynlo.media.Mode):
 
     @property
     def Pp_fwd(self):
-        if self._rk45_Pp is not None:
-            self._Pp_fwd = self.rk45_Pp.y[0]
+        if self._rk45 is not None:
+            self._Pp_fwd = self.rk45.y[0]
         return self._Pp_fwd
 
+    @property
+    def P_ase(self):
+        if self._rk45 is not None:
+            self._P_ase[:] = self.rk45.y[1:]
+        return self._P_ase
+
     def update_Pp(self):
-        while self.rk45_Pp.t < self.z:
-            self.rk45_Pp.step()
+        while self.rk45.t < self.z:
+            self.rk45.step()
 
 
 class Model_EDF(pynlo.model.Model):
@@ -472,7 +484,6 @@ class Model_EDF(pynlo.model.Model):
         self._sum_a_record = []
         self._sum_e_record = []
         self._z_record = []
-        self.loss_spl_applied = False
 
     @property
     def Pp_record(self):
@@ -598,13 +609,6 @@ class Model_EDF(pynlo.model.Model):
                 self.mode.p_v[:] = p_v[:]
                 self.mode.update_Pp()
 
-                # apply loss if z > z_spl
-                if z > self.mode.z_spl:
-                    if not self.loss_spl_applied:
-                        a_v *= self.mode.loss_spl**0.5
-                        self.loss_spl_applied = True
-                        self.mode.rk45_Pp.y *= self.mode.loss_spl
-
                 # record values for future sims
                 self._sum_a_record.append(self.mode._sum_a)
                 self._sum_e_record.append(self.mode._sum_e)
@@ -683,6 +687,10 @@ class Model_EDF(pynlo.model.Model):
         a_v_record = np.empty((n_records, pulse_out.n), dtype=complex)
         a_v_record[0, :] = pulse_out.a_v
 
+        # ASE power
+        P_v_ase_record = np.empty((n_records, pulse_out.n), dtype=float)
+        P_v_ase_record[0, :] = 0
+
         # Time Domain
         a_t_record = np.empty((n_records, pulse_out.n), dtype=complex)
         a_t_record[0, :] = pulse_out.a_t
@@ -732,6 +740,7 @@ class Model_EDF(pynlo.model.Model):
                 idx = z_record[z]
                 a_t_record[idx, :] = pulse_out.a_t
                 a_v_record[idx, :] = pulse_out.a_v
+                P_v_ase_record[idx, :] = self.mode.P_ase
                 Pp[idx] = self.mode.Pp_fwd
                 n1_n[idx] = self.mode.n1 / self.mode.n_ion
                 n2_n[idx] = self.mode.n2 / self.mode.n_ion
@@ -755,6 +764,7 @@ class Model_EDF(pynlo.model.Model):
             z=np.fromiter(z_record.keys(), dtype=float),
             a_t=a_t_record,
             a_v=a_v_record,
+            P_v_ase=P_v_ase_record,
             Pp=Pp,
             n1_n=n1_n,
             n2_n=n2_n,
@@ -773,7 +783,6 @@ class NLSE(pynlo.model.NLSE):
         self._sum_a_record = []
         self._sum_e_record = []
         self._z_record = []
-        self.loss_spl_applied = False
 
     @property
     def Pp_record(self):
@@ -815,16 +824,8 @@ class EDF(pynlo.materials.SilicaFiber):
         f_r=100e6,
         overlap_p=1.0,
         overlap_s=1.0,
-        # --------- accounting for splicing of two doped fibers -----
-        n_ion_1=7e24,
-        n_ion_2=7e24,
-        z_spl=0.0,
-        loss_spl=0.0,
-        a_eff_1=3.14e-12,
-        a_eff_2=3.14e-12,
-        gamma_1=0,
-        gamma_2=0,
-        # -----------------------------------------------------------
+        n_ion=7e24,
+        a_eff=3.14e-12,
         sigma_p=None,
         sigma_a=None,
         sigma_e=None,
@@ -841,14 +842,8 @@ class EDF(pynlo.materials.SilicaFiber):
         self.f_r = f_r
         self.overlap_p = overlap_p
         self.overlap_s = overlap_s
-        self._n_ion_1 = n_ion_1
-        self._n_ion_2 = n_ion_2
-        self.z_spl = z_spl
-        self.loss_spl = loss_spl
-        self._a_eff_1 = a_eff_1
-        self._a_eff_2 = a_eff_2
-        self._gamma_1 = gamma_1
-        self._gamma_2 = gamma_2
+        self.n_ion = n_ion
+        self.a_eff = a_eff
         self.sigma_p = sigma_p
         self.sigma_a = sigma_a
         self.sigma_e = sigma_e
@@ -916,29 +911,9 @@ class EDF(pynlo.materials.SilicaFiber):
     def eps_s(self, eps_s):
         self._eps_s = eps_s
 
-    def g3(self, v_grid, t_shock=None):
-        """
-        g3 nonlinear parameter
-
-        Args:
-            v_grid (1D array):
-                frequency grid
-            t_shock (float, optional):
-                the characteristic time scale of optical shock formation, default is None
-                in which case it is taken to be 1 / (2 pi v0)
-
-        Returns:
-            g3
-        """
-        g3_1 = pynlo.utility.chi3.gamma_to_g3(v_grid, self._gamma_1, t_shock=t_shock)
-        g3_2 = pynlo.utility.chi3.gamma_to_g3(v_grid, self._gamma_2, t_shock=t_shock)
-        return lambda z: g3_1 if z < self.z_spl else g3_2
-
     def generate_model(
         self,
         pulse,
-        beta_1,
-        beta_2,
         t_shock="auto",
         raman_on=True,
         Pp_fwd=0,
@@ -952,10 +927,6 @@ class EDF(pynlo.materials.SilicaFiber):
         Args:
             pulse (object):
                 instance of pynlo.light.Pulse
-            beta_1 (np.ndarray):
-                beta for first fiber, must be array that matches pulse's v_grid
-            beta_2 (np.ndarray):
-                beta for second fiber, must be array that matches pulse's v_grid
             t_shock (float, optional):
                 time for optical shock formation, defaults to 1 / (2 pi pulse.v0)
             raman_on (bool, optional):
@@ -980,11 +951,7 @@ class EDF(pynlo.materials.SilicaFiber):
         dt = pulse.dt
 
         v_grid = pulse.v_grid
-        assert isinstance(beta_1, np.ndarray) and beta_1.size == pulse.n
-        assert isinstance(beta_2, np.ndarray) and beta_2.size == pulse.n
-        beta = lambda z: beta_1 if z < self.z_spl else beta_2
-        # if beta is None:
-        #     beta = self.beta(v_grid)
+        beta = self.beta(v_grid)
         g3 = self.g3(v_grid, t_shock=t_shock)
         if raman_on:
             rv_grid, raman = self.raman(n, dt, analytic=analytic)
@@ -1005,12 +972,8 @@ class EDF(pynlo.materials.SilicaFiber):
             f_r=self.f_r,
             overlap_p=self.overlap_p,
             overlap_s=self.overlap_s,
-            n_ion_1=self._n_ion_1,
-            n_ion_2=self._n_ion_2,
-            z_spl=self.z_spl,
-            loss_spl=self.loss_spl,
-            a_eff_1=self._a_eff_1,
-            a_eff_2=self._a_eff_2,
+            n_ion=self.n_ion,
+            a_eff=self.a_eff,
             sigma_p=self.sigma_p,
             sigma_a=self.sigma_a,
             sigma_e=self.sigma_e,
@@ -1029,5 +992,5 @@ class EDF(pynlo.materials.SilicaFiber):
 
         # print("USING NLSE")
         model = NLSE(pulse, mode)
-        model.mode.setup_rk45_Pp(1e-3)
+        model.mode.setup_rk45(1e-3)
         return model
