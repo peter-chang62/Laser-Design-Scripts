@@ -171,7 +171,7 @@ class Mode(pynlo.media.Mode):
         self.sigma_e = sigma_e
         self._Pp_fwd = Pp_fwd
         self._z_start = z
-        self._rk45_Pp = None
+        self._rk45 = None
 
         self._eps_p = eps_p
         self._xi_p = xi_p
@@ -412,8 +412,8 @@ class Mode(pynlo.media.Mode):
         )
         return deriv
 
-    def setup_rk45_Pp(self, dz):
-        self._rk45_Pp = RK45(
+    def setup_rk45(self, dz):
+        self._rk45 = RK45(
             fun=self._dPp_dz,
             t0=self._z_start,
             y0=np.array([self.Pp_fwd]),
@@ -422,9 +422,9 @@ class Mode(pynlo.media.Mode):
         )
 
     @property
-    def rk45_Pp(self):
-        assert self._rk45_Pp is not None, "setup rk45 by calling setup_rk45_Pp(dz)"
-        return self._rk45_Pp
+    def rk45(self):
+        assert self._rk45 is not None, "setup rk45 by calling setup_rk45(dz)"
+        return self._rk45
 
     @property
     def Pp(self):
@@ -432,13 +432,13 @@ class Mode(pynlo.media.Mode):
 
     @property
     def Pp_fwd(self):
-        if self._rk45_Pp is not None:
-            self._Pp_fwd = self.rk45_Pp.y[0]
+        if self._rk45 is not None:
+            self._Pp_fwd = self.rk45.y[0]
         return self._Pp_fwd
 
     def update_Pp(self):
-        while self.rk45_Pp.t < self.z:
-            self.rk45_Pp.step()
+        while self.rk45.t < self.z:
+            self.rk45.step()
 
 
 class Model_EDF(pynlo.model.Model):
@@ -950,5 +950,5 @@ class EDF(pynlo.materials.SilicaFiber):
 
         # print("USING NLSE")
         model = NLSE(pulse, mode)
-        model.mode.setup_rk45_Pp(1e-3)
+        model.mode.setup_rk45(1e-3)
         return model
