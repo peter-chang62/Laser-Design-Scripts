@@ -2,7 +2,7 @@
 from scipy.constants import c
 import pandas as pd
 import clipboard
-from re_nlse_joint_5level_splice import EDF
+from re_nlse_joint_5level_wsplice import EDF
 import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
