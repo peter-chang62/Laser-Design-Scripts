@@ -139,7 +139,7 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 6
+D_rt = 7.0
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
@@ -215,8 +215,8 @@ while not done:
     oc_percent = np.round(p_out.e_p / (p_s.e_p + p_out.e_p), 4)
 
     # save data
-    p_t_record.append(p_out.p_t)
-    p_v_record.append(p_out.p_v)
+    p_t_record.append(p_out.p_t.copy())
+    p_v_record.append(p_out.p_v.copy())
 
     # ------------- straight section --------------------------
     if include_loss:
