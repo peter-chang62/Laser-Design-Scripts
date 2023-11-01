@@ -1,5 +1,5 @@
 # %% ----- imports
-from re_nlse_joint_5level import EDF
+from re_nlse_joint_5level_wASE import EDF
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
@@ -97,14 +97,24 @@ def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
             sim_fwd.Pp = Pp_total
             sim_bck.Pp = Pp_total
         else:
-            rk45 = model_bck.mode.rk45_Pp
+            rk45 = model_bck.mode.rk45
             t = [rk45.t]
             y = [rk45.y[0]]
+
+            idx = 1
+            step = sim_fwd.z[1] - sim_fwd.z[0]
+            P_v_ase_record = np.zeros(sim_fwd.P_v_ase.shape)
+            P_v_ase_record[0] = 0
             while rk45.t < length:
                 model_bck.mode.z = rk45.t  # update z-dependent parameter
                 rk45.step()
                 t.append(rk45.t)
                 y.append(rk45.y[0])
+
+                if rk45.t > idx * step:
+                    P_v_ase_record[idx] = rk45.y[1:]
+                    idx += 1
+
             t = np.asarray(t)
             y = np.asarray(y)
 
@@ -116,8 +126,9 @@ def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
             e_p_bck = 1e-20  # avoid divide 0 errors
 
             # for return results
-            sim_bck = None
             sim_fwd.Pp += Pp_prev(sim_fwd.z)
+            sim_fwd.P_v_ase += P_v_ase_record[::-1]
+            sim_bck = None
 
         # book keeping
         if loop_count == 0:
