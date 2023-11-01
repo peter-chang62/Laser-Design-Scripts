@@ -2,12 +2,12 @@
 from scipy.constants import c
 import pandas as pd
 import clipboard
-from re_nlse_joint_5level_wASE import EDF
+from re_nlse_joint_5level import EDF
 import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
-import edfa_wASE as edfa
+import edfa as edfa
 import time
 
 ns = 1e-9
@@ -99,7 +99,7 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_fwd=pulse,
     p_bck=None,
     edf=edf,
-    length=1.0,
+    length=2,
     Pp_fwd=0 * loss_ins * loss_spl,
     Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,
@@ -109,7 +109,7 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
 #     p_fwd=pulse,
 #     p_bck=None,
 #     edf=edf,
-#     length=1.0,
+#     length=2,
 #     Pp_fwd=2 * loss_ins * loss_spl,
 #     Pp_bck=0 * loss_ins * loss_spl,
 #     n_records=100,
@@ -133,10 +133,6 @@ ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
 ax1.plot(z, sol_Pp, label="pump", linewidth=2)
 ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
-ax1_2 = ax1.twinx()
-ax1_2.plot(z, np.sum(sim_fwd.P_v_ase, axis=1) * loss_ins * loss_spl * 1e3, "C2--", label="ASE")
-ax1_2.set_ylabel("ASE power (mW)")
-ax1_2.legend(loc="lower right")
 ax1.grid()
 ax1.legend(loc="upper left")
 ax1.set_xlabel("position (m)")
