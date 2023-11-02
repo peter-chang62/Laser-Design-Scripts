@@ -193,3 +193,6 @@ I tried 50 cm total of edf, and there isn't a regime where the pulse can stabili
 
 2023-11-02T12:18:
 I had previously tried 40 cm of edf, and so I think I'll try 35 cm now and see if I can mode-lock with lower current... I'm thinking increasing it was probably the wrong direction? There should be an optimum length of anomalous gain fiber.
+
+2023-11-02T15:33
+Things are a lot better if I remove the splicy loss between the 8 um core edf and pm1550. 40 cm is then the best. 50 cm I think I had tried with the splice loss removed, but I double checked briefly just now without a huge range of values and it wasn't stable. I tried 45 cm with a wider range of values pushing normal and anomalous and it also isn't stable... So, 40 cm is around the max? +- less than 5cm.

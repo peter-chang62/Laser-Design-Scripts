@@ -9,6 +9,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
 import edfa_wsplice as edfa
 import time
+import collections
 
 ns = 1e-9
 ps = 1e-12
@@ -18,6 +19,28 @@ nm = 1e-9
 um = 1e-6
 km = 1e3
 W = 1.0
+
+output = collections.namedtuple("output", ["model", "sim"])
+
+
+def propagate(fiber, pulse, length, n_records):
+    """
+    propagates a given pulse through fiber of given length
+
+    Args:
+        fiber (instance of SilicaFiber): Fiber
+        pulse (instance of Pulse): Pulse
+        length (float): fiber elngth
+
+    Returns:
+        output: model, sim
+    """
+    fiber: pynlo.materials.SilicaFiber
+    model = fiber.generate_model(pulse, t_shock=None, raman_on=False)
+    dz = model.estimate_step_size()
+    sim = model.simulate(length, dz=dz, n_records=n_records)
+    return output(model=model, sim=sim)
+
 
 # %% -------------- load absorption coefficients from NLight ------------------
 sigma = pd.read_excel("NLight_provided/Erbium Cross Section - nlight_pump+signal.xlsx")
@@ -61,8 +84,8 @@ gamma_a = 1.2 / (W * km)
 # %% ------------- pulse ------------------------------------------------------
 loss_ins = 10 ** (-0.7 / 10)
 loss_spl = 10 ** (-0.2 / 10)
-f_r = 1e9
-e_p = 25e-3 / f_r * loss_ins * loss_spl
+f_r = 100e6
+e_p = 5e-3 / f_r * loss_ins * loss_spl
 
 n = 256
 v_min = c / 1700e-9
@@ -93,20 +116,21 @@ sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
-z_spl = 1.0
+length = 2.0
+z_spl = 1.75
 
 edf = EDF(
     f_r=f_r,
     overlap_p=1.0,
     overlap_s=1.0,
-    n_ion_1=n_ion_a,
-    n_ion_2=n_ion_n,
+    n_ion_1=n_ion_n,
+    n_ion_2=n_ion_a,
     z_spl=z_spl,
     loss_spl=10 ** (-0.7 / 10),
-    a_eff_1=a_eff_a,
-    a_eff_2=a_eff_n,
-    gamma_1=gamma_a,
-    gamma_2=gamma_n,
+    a_eff_1=a_eff_n,
+    a_eff_2=a_eff_a,
+    gamma_1=gamma_n,
+    gamma_2=gamma_a,
     sigma_p=sigma_p,
     sigma_a=sigma_a,
     sigma_e=sigma_e,
@@ -129,10 +153,10 @@ beta_a = edf.beta(pulse.v_grid)
 model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_fwd=pulse,
     p_bck=None,
-    beta_1=beta_a,
-    beta_2=beta_n,
+    beta_1=beta_n,
+    beta_2=beta_a,
     edf=edf,
-    length=2.0,
+    length=length,
     Pp_fwd=0 * loss_ins * loss_spl,
     Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,

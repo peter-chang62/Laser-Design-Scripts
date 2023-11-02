@@ -7,14 +7,14 @@ import clipboard
 import time
 
 
-path = (
-    r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
-    + "sim_output/200_MHz_ER_110_ER_80_35cm_350mW_pump/"
-)
 # path = (
 #     r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
-#     + "sim_output/200_MHz_ER_110_ER_80_40cm_400mW_pump/"
+#     + "sim_output/200_MHz_ER_110_ER_80_35cm_350mW_pump/"
 # )
+path = (
+    r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
+    + "sim_output/200_MHz_ER_110_ER_80_40cm_400mW_pump/"
+)
 # path = (
 #     r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
 #     + "sim_output/200_MHz_ER_110_500_mW_pump/"
@@ -42,7 +42,7 @@ dv_dl = pulse.v_grid**2 / c
 
 # %% -----
 fig, ax = plt.subplots(1, 1)
-for i in np.arange(4.5, 11.5, 0.5):
+for i in np.arange(5.5, 9.5, 0.5):
     p_t = np.load(path + f"p_t_{i}_psnmkm_200MHz_ls_11cm.npy")
     p_v = np.load(path + f"p_v_{i}_psnmkm_200MHz_ls_11cm.npy")
     p_wl = p_v * dv_dl * f_r * 1e-9 * 1e3
@@ -58,11 +58,11 @@ ax.set_xlim(1450, 1650)
 fig.tight_layout()
 
 # %% -----
-D = 10.0
+D = 9.0
 p_v = np.load(path + f"p_v_{float(D)}_psnmkm_200MHz_ls_11cm.npy")
 p_t = np.load(path + f"p_t_{float(D)}_psnmkm_200MHz_ls_11cm.npy")
 p_wl_plot = p_v * dv_dl * f_r * 1e-9 * 1e3
-p_wl_plot = 10 * np.log10(p_wl_plot)
+p_wl_plot_dB = 10 * np.log10(p_wl_plot)
 
 # fig, ax = plt.subplots(1, 1)
 # (line,) = ax.plot(pulse.wl_grid * 1e9, p_wl_plot[0])
@@ -94,7 +94,7 @@ p_wl_plot = 10 * np.log10(p_wl_plot)
 #         time.sleep(0.05)
 
 fig, ax = plt.subplots(1, 1)
-p_wl_dB = p_wl_plot - p_wl_plot.max()
+p_wl_dB = p_wl_plot_dB - p_wl_plot_dB.max()
 ax.pcolormesh(
     pulse.wl_grid * 1e9,
     np.arange(p_wl_dB.shape[0]),
