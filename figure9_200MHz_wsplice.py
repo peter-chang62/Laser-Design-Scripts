@@ -125,7 +125,7 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 7
+D_rt = 10.0
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length

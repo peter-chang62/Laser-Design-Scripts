@@ -190,3 +190,6 @@ I think the natural thing to try next is to increase the amount of anomalous fib
 
 2023-11-02T11:49:
 I tried 50 cm total of edf, and there isn't a regime where the pulse can stabilize ...
+
+2023-11-02T12:18:
+I had previously tried 40 cm of edf, and so I think I'll try 35 cm now and see if I can mode-lock with lower current... I'm thinking increasing it was probably the wrong direction? There should be an optimum length of anomalous gain fiber.
