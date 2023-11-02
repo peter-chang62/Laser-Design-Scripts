@@ -153,7 +153,7 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 500 * 1e-3
+Pp = 400 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 

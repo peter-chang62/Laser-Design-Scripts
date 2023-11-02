@@ -34,26 +34,29 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 )
 
 # %% -------------- load dispersion coefficients ------------------------------
-frame_1 = pd.read_excel(
+frame_n = pd.read_excel(
     "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
 )
-frame_2 = pd.read_excel(
+frame_a = pd.read_excel(
     "NLight_provided/nLIGHT_Er80-8_125-PM_simulated_GVD_dispersion.xlsx"
 )
 
-gvd_1 = frame_1.to_numpy()[:, :2][1:].astype(float)
-wl = gvd_1[:, 0] * 1e-9
+gvd_n = frame_n.to_numpy()[:, :2][1:].astype(float)
+wl = gvd_n[:, 0] * 1e-9
 omega = 2 * np.pi * c / wl
 omega0 = 2 * np.pi * c / 1560e-9
-polyfit_1 = np.polyfit(omega - omega0, gvd_1[:, 1], deg=3)
-polyfit_1 = polyfit_1[::-1]  # lowest order first
+polyfit_n = np.polyfit(omega - omega0, gvd_n[:, 1], deg=3)
+polyfit_n = polyfit_n[::-1]  # lowest order first
 
-gvd_2 = frame_2.to_numpy()[:, :2][1:].astype(float)
-wl = gvd_2[:, 0] * 1e-9
+gvd_a = frame_a.to_numpy()[:, :2][1:].astype(float)
+wl = gvd_a[:, 0] * 1e-9
 omega = 2 * np.pi * c / wl
 omega0 = 2 * np.pi * c / 1560e-9
-polyfit_2 = np.polyfit(omega - omega0, gvd_2[:, 1], deg=3)
-polyfit_2 = polyfit_2[::-1]  # lowest order first
+polyfit_a = np.polyfit(omega - omega0, gvd_a[:, 1], deg=3)
+polyfit_a = polyfit_a[::-1]  # lowest order first
+
+gamma_n = 6.5 / (W * km)
+gamma_a = 1.2 / (W * km)
 
 # %% ------------- pulse ------------------------------------------------------
 loss_ins = 10 ** (-0.7 / 10)
@@ -79,45 +82,45 @@ pulse = pynlo.light.Pulse.Sech(
 )
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
-r_eff_1 = 3.06 * um / 2
-r_eff_2 = 8.05 * um / 2
-a_eff_1 = np.pi * r_eff_1**2
-a_eff_2 = np.pi * r_eff_2**2
-n_ion_1 = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
-n_ion_2 = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+r_eff_n = 3.06 * um / 2
+r_eff_a = 8.05 * um / 2
+a_eff_n = np.pi * r_eff_n**2
+a_eff_a = np.pi * r_eff_a**2
+n_ion_n = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion_a = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
 sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
-z_spl = 1
+z_spl = 1.0
 
 edf = EDF(
     f_r=f_r,
     overlap_p=1.0,
     overlap_s=1.0,
-    n_ion_1=n_ion_1,
-    n_ion_2=n_ion_2,
+    n_ion_1=n_ion_a,
+    n_ion_2=n_ion_n,
     z_spl=z_spl,
     loss_spl=10 ** (-0.7 / 10),
-    a_eff_1=a_eff_1,
-    a_eff_2=a_eff_2,
-    gamma_1=1 / (W * km),
-    gamma_2=6.5 / (W * km),
+    a_eff_1=a_eff_a,
+    a_eff_2=a_eff_n,
+    gamma_1=gamma_a,
+    gamma_2=gamma_n,
     sigma_p=sigma_p,
     sigma_a=sigma_a,
     sigma_e=sigma_e,
 )
-edf.set_beta_from_beta_n(v0, polyfit_1)
-beta_1 = edf._beta(pulse.v_grid)
-edf.set_beta_from_beta_n(v0, polyfit_2)
-beta_2 = edf.beta(pulse.v_grid)
+edf.set_beta_from_beta_n(v0, polyfit_n)
+beta_n = edf._beta(pulse.v_grid)
+edf.set_beta_from_beta_n(v0, polyfit_a)
+beta_a = edf.beta(pulse.v_grid)
 
 # %% --------- edfa forward only ---------
 # model = edf.generate_model(
 #     pulse,
-#     beta_1,
-#     beta_2,
+#     beta_n,
+#     beta_a,
 #     Pp_fwd=2,
 # )
 # sim = model.simulate(2, n_records=100, plot="wvl")
@@ -125,9 +128,9 @@ beta_2 = edf.beta(pulse.v_grid)
 # %% ----------- edfa ---------------------------------------------------------
 model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_fwd=pulse,
-    p_bck=pulse,
-    beta_1=beta_1,
-    beta_2=beta_2,
+    p_bck=None,
+    beta_1=beta_a,
+    beta_2=beta_n,
     edf=edf,
     length=2.0,
     Pp_fwd=0 * loss_ins * loss_spl,
