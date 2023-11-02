@@ -20,9 +20,7 @@ um = 1e-6
 km = 1e3
 W = 1.0
 
-output_path = (
-    r"C:\\Users\\pchan\\OneDrive - UCB-O365\\sim_output\\200 MHz ER 110 and ER 80/"
-)
+output_path = r"C:\\Users\\pchan\\OneDrive - UCB-O365\\sim_output\\200_MHz_ER_110_ER_80_35cm_350mW_pump/"
 output = collections.namedtuple("output", ["model", "sim"])
 n_records = 100
 loss = 10 ** -(0.7 / 10)
@@ -128,19 +126,20 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 8.0
+D_rt = 11.0
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
 # ----- replace l_p_l for anomalous gain fiber
-l_g_a = 0.4 - l_g  # target 50 cm gain fiber total
+l_g_a = 0.35 - l_g  # target 50 cm gain fiber total
 l_p_l -= l_g_a
 
 assert np.all(np.array([l_g, l_p_s, l_p_l, l_g_a]) >= 0)
 
 print(f"Using {D_rt} ps/nm/km round trip dispersion")
+print(f"normal gain: {l_g}, anomalous gain: {l_g_a} straight: {l_p_s}, passive in loop: {l_p_l}")
 
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
@@ -188,7 +187,7 @@ p_t_record = []
 p_v_record = []
 
 # parameters
-Pp = 400 * 1e-3
+Pp = 350 * 1e-3
 phi = np.pi / 2
 
 # set up plot
@@ -210,7 +209,8 @@ while not done:
     # ------------- gain fiber first --------------------------
     # gain section
     if include_loss:
-        p_gf.p_v[:] *= loss  # splice from splitter to gain
+        # p_gf.p_v[:] *= loss  # splice from splitter to gain
+        pass  # splice from splitter to anomalous edf is losseless?
 
     # ------------- passive fiber first --------------------------
     # passive fiber
@@ -243,7 +243,8 @@ while not done:
     p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l).sim.pulse_out.a_t[:]
 
     if include_loss:
-        p_pf.p_v[:] *= loss  # splice from gain to splitter
+        # p_pf.p_v[:] *= loss  # splice from gain to splitter
+        pass  # splice from anomalus edf to splitter is losseless?
 
     # ------------- back to splitter --------------------------
     p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) + p_pf.a_t[:]
