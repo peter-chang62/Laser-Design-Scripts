@@ -7,6 +7,14 @@ import clipboard
 import time
 
 
+path = (
+    r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
+    + "sim_output/200_MHz_ER_110_ER_80_40cm_400_mW_pump/"
+)
+# path = (
+#     r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
+#     + "sim_output/200_MHz_ER_110_500_mW_pump/"
+# )
 f_r = 200e6
 n = 256
 v_min = c / 1750e-9
@@ -31,10 +39,7 @@ dv_dl = pulse.v_grid**2 / c
 # %% -----
 fig, ax = plt.subplots(1, 1)
 for i in np.arange(5.0, 9.5, 0.5):
-    path = (
-        r"/Users/peterchang/Library/CloudStorage/OneDrive-UCB-O365/"
-        + "sim_output/200 MHz ER 110 and ER 80/"
-    )
+    # for i in np.arange(2.0, 7.5, 0.5):
     p_t = np.load(path + f"p_t_{i}_psnmkm_200MHz_ls_11cm.npy")
     p_v = np.load(path + f"p_v_{i}_psnmkm_200MHz_ls_11cm.npy")
     p_wl = p_v * dv_dl * f_r * 1e-9 * 1e3
@@ -50,7 +55,7 @@ ax.set_xlim(1450, 1650)
 fig.tight_layout()
 
 # %% -----
-D = 6.0
+D = 7.0
 p_v = np.load(path + f"p_v_{float(D)}_psnmkm_200MHz_ls_11cm.npy")
 p_t = np.load(path + f"p_t_{float(D)}_psnmkm_200MHz_ls_11cm.npy")
 p_wl_plot = p_v * dv_dl * f_r * 1e-9 * 1e3

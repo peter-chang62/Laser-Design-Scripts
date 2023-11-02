@@ -177,3 +177,16 @@ Notes to take from stepping parameters:
 validation: The forward propagation matches the re_only (rate equation only) exactly. Then, I calculate the backward propagation using only forward propagation code + optimization to guess the value of the output pump. This value is back propagated using the forward propagation code. The output matches the results from using the iterative shooting method. This validates the iterative shooting method by matching it to the forward propagation code which is matched to the re_only code. So, granted that the re_only code is correct, the whole chain is validated :) !!!!
 
 The above is done using re_only_5level.py, 5level_amplifier.py and scratch_2.py
+
+-----------------------------------------------
+2023-11-02T11:17
+
+I realized I was missing something in the above. However, now I solve it exactly the same way as Barmenkov et al. and again I ran the validations.
+
+2023-11-02T11:17
+splicing ER normal to anomalous, 0.7 dB splicing loss between the two edf's, but no splicing loss from anomalous to pm1550. I get that the cavity dispersion needs to be much more anomalous than before. And, the pump current ends up being about the same... This is with 40 cm total, however. I get the same spectrum at 500 mW 8 ps/nm/km as 400 mW 4 ps/nm/km when only using the ER 110
+
+I think the natural thing to try next is to increase the amount of anomalous fiber. 
+
+2023-11-02T11:49:
+I tried 50 cm total of edf, and there isn't a regime where the pulse can stabilize ...

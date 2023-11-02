@@ -132,10 +132,11 @@ l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
 # ----- replace l_p_l for anomalous gain fiber
-l_g_a = 0.4 - l_g  # target 50 cm gain fiber total
+l_g_a = 0.35 - l_g  # target 50 cm gain fiber total
 l_p_l -= l_g_a
 
 assert np.all(np.array([l_g, l_p_s, l_p_l, l_g_a]) >= 0)
+print(f"normal gain: {l_g}, anomalous gain: {l_g_a} straight: {l_p_s}, passive in loop: {l_p_l}")
 
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
@@ -179,7 +180,7 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 400 * 1e-3
+Pp = 350 * 1e-3
 phi = np.pi / 2
 
 # set up plot
@@ -199,9 +200,9 @@ while not done:
     p_pf.a_t[:] = p_s.a_t[:] / 2  # straight / 2
 
     # ------------- gain fiber first --------------------------
-    # gain section
     if include_loss:
-        p_gf.p_v[:] *= loss  # splice from splitter to gain
+        # p_gf.p_v[:] *= loss  # splice from splitter to gain
+        pass  # splice from splitter to anomalous edf is losseless?
 
     # ------------- passive fiber first --------------------------
     # passive fiber
@@ -234,7 +235,8 @@ while not done:
     p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l).sim.pulse_out.a_t[:]
 
     if include_loss:
-        p_pf.p_v[:] *= loss  # splice from gain to splitter
+        # p_pf.p_v[:] *= loss  # splice from gain to splitter
+        pass  # splice from anomalus edf to splitter is losseless?
 
     # ------------- back to splitter --------------------------
     p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) + p_pf.a_t[:]
