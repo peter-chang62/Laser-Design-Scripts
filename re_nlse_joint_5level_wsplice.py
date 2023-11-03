@@ -599,7 +599,7 @@ class Model_EDF(pynlo.model.Model):
                 self.mode.update_Pp()
 
                 # apply loss if z > z_spl
-                if z >= self.mode.z_spl:
+                if z > self.mode.z_spl:
                     if not self.loss_spl_applied:
                         a_v *= self.mode.loss_spl**0.5
                         self.mode.rk45_Pp.y *= self.mode.loss_spl

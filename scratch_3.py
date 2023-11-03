@@ -23,7 +23,7 @@ W = 1.0
 output = collections.namedtuple("output", ["model", "sim"])
 
 
-def propagate(fiber, pulse, length, n_records):
+def propagate(fiber, pulse, length, n_records=None):
     """
     propagates a given pulse through fiber of given length
 
@@ -84,15 +84,16 @@ gamma_a = 1.2 / (W * km)
 # %% ------------- pulse ------------------------------------------------------
 loss_ins = 10 ** (-0.7 / 10)
 loss_spl = 10 ** (-0.2 / 10)
-f_r = 100e6
-e_p = 5e-3 / f_r * loss_ins * loss_spl
 
+f_r = 200e6
 n = 256
-v_min = c / 1700e-9
+v_min = c / 1750e-9
 v_max = c / 1400e-9
-v0 = c / 1550e-9
-t_fwhm = 250e-15
-min_time_window = 10e-12
+v0 = c / 1560e-9
+e_p = 1e-3 / f_r
+
+t_fwhm = 2e-12
+min_time_window = 20e-12
 pulse = pynlo.light.Pulse.Sech(
     n,
     v_min,
@@ -103,6 +104,24 @@ pulse = pynlo.light.Pulse.Sech(
     min_time_window,
     alias=2,
 )
+dv_dl = pulse.v_grid**2 / c
+a_v = np.load("sim_output/200MHz_6psnmkm_40cm_totaledf_400mW_pump.npy")
+v_grid = np.load("sim_output/v_grid.npy")
+phi_v = np.unwrap(np.angle(a_v))  # unwrap for fitting
+p_v = abs(a_v) ** 2
+pulse.import_p_v(v_grid, p_v, phi_v=phi_v)
+
+# %% ---------- optional passive fiber ----------------------------------------
+pm1550 = pynlo.materials.SilicaFiber()
+pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
+pm1550.gamma = 1.2 / (W * km)
+
+length_pm1550 = 3.0
+# ignore numpy error if length = 0.0, it occurs when n_records is not None and
+# propagation length is 0, the output pulse is still correct
+model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
+pulse_pm1550 = sim_pm1550.pulse_out
+
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
 r_eff_n = 3.06 * um / 2
@@ -117,7 +136,7 @@ sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
 length = 2.0
-z_spl = 1.75
+z_spl = 3
 
 edf = EDF(
     f_r=f_r,
@@ -140,18 +159,9 @@ beta_n = edf._beta(pulse.v_grid)
 edf.set_beta_from_beta_n(v0, polyfit_a)
 beta_a = edf.beta(pulse.v_grid)
 
-# %% --------- edfa forward only ---------
-# model = edf.generate_model(
-#     pulse,
-#     beta_n,
-#     beta_a,
-#     Pp_fwd=2,
-# )
-# sim = model.simulate(2, n_records=100, plot="wvl")
-
 # %% ----------- edfa ---------------------------------------------------------
 model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
-    p_fwd=pulse,
+    p_fwd=pulse_pm1550,
     p_bck=None,
     beta_1=beta_n,
     beta_2=beta_a,
@@ -163,7 +173,7 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
 )
 sim = sim_fwd
 
-# %% ----- plot results
+# %% ----------- plot results -------------------------------------------------
 sol_Pp = sim.Pp
 sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1)
 z = sim.z
@@ -174,7 +184,8 @@ n4 = sim.n4_n
 n5 = sim.n5_n
 
 fig = plt.figure(
-    num="5-level rate equation for 250 fs pulse", figsize=np.array([11.16, 5.21])
+    num=f"power evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
+    figsize=np.array([11.16, 5.21]),
 )
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2)
@@ -194,5 +205,18 @@ ax2.grid()
 ax2.legend(loc="best")
 ax2.set_xlabel("position (m)")
 ax2.set_ylabel("population inversion")
-
 fig.tight_layout()
+
+sim.plot(
+    "wvl",
+    num=f"spectral evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
+)
+
+fig, ax = plt.subplots(
+    1, 2, num=f"output for {length} normal edf and {length_pm1550} pm1550 pre-chirp"
+)
+p_wl = sim.p_v * dv_dl
+ax[0].plot(pulse.wl_grid * 1e9, p_wl[0] / p_wl[0].max())
+ax[0].plot(pulse.wl_grid * 1e9, p_wl[-1] / p_wl[-1].max())
+ax[1].plot(pulse.t_grid * 1e12, sim.p_t[0] / sim.p_t[0].max())
+ax[1].plot(pulse.t_grid * 1e12, sim.p_t[-1] / sim.p_t[-1].max())
