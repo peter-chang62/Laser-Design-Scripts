@@ -2,12 +2,12 @@
 from scipy.constants import c
 import pandas as pd
 import clipboard
-from re_nlse_joint_5level_wsplice import EDF
+from re_nlse_joint_5level_wsplice import EDF as EDF_wsplice
 import pynlo
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
-import edfa_wsplice as edfa
+import edfa_wsplice as edfa_wsplice
 import time
 import collections
 
@@ -84,14 +84,14 @@ gamma_a = 1.2 / (W * km)
 
 # %% ------------- pulse ------------------------------------------------------
 loss_ins = 10 ** (-0.7 / 10)
-loss_spl = 10 ** (-0.2 / 10)
+loss_spl = 10 ** (-0.7 / 10)
 
 f_r = 200e6
 n = 256
 v_min = c / 1750e-9
 v_max = c / 1400e-9
 v0 = c / 1560e-9
-e_p = 1e-3 / f_r
+e_p = 35e-3 / 2 / f_r
 
 t_fwhm = 2e-12
 min_time_window = 20e-12
@@ -128,7 +128,7 @@ pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = 1.2 / (W * km)
 
-length_pm1550 = 3.0
+length_pm1550 = 1.25
 # ignore numpy error if length = 0.0, it occurs when n_records is not None and
 # propagation length is 0, the output pulse is still correct
 model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
@@ -148,9 +148,9 @@ sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
 length = 2.0
-z_spl = 3
+z_spl = 1.75
 
-edf = EDF(
+edf = EDF_wsplice(
     f_r=f_r,
     overlap_p=1.0,
     overlap_s=1.0,
@@ -172,68 +172,68 @@ edf.set_beta_from_beta_n(v0, polyfit_a)
 beta_a = edf.beta(pulse.v_grid)
 
 # %% ----------- edfa ---------------------------------------------------------
-model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+model_fwd, sim_fwd, model_bck, sim_bck = edfa_wsplice.amplify(
     p_fwd=pulse_pm1550,
     p_bck=None,
     beta_1=beta_n,
     beta_2=beta_a,
     edf=edf,
     length=length,
-    Pp_fwd=0.75 * loss_ins * loss_ins,
-    Pp_bck=1.5 * loss_ins * loss_ins,
+    Pp_fwd=1.5 * loss_ins * loss_ins * loss_spl,
+    Pp_bck=1.5 * loss_ins * loss_ins * loss_spl,
     n_records=100,
 )
 sim = sim_fwd
 
 # %% ----------- plot results -------------------------------------------------
-# sol_Pp = sim.Pp
-# sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1)
-# z = sim.z
-# n1 = sim.n1_n
-# n2 = sim.n2_n
-# n3 = sim.n3_n
-# n4 = sim.n4_n
-# n5 = sim.n5_n
+sol_Pp = sim.Pp
+sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1)
+z = sim.z
+n1 = sim.n1_n
+n2 = sim.n2_n
+n3 = sim.n3_n
+n4 = sim.n4_n
+n5 = sim.n5_n
 
-# fig = plt.figure(
-#     num=f"power evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
-#     figsize=np.array([11.16, 5.21]),
-# )
-# ax1 = fig.add_subplot(1, 2, 1)
-# ax2 = fig.add_subplot(1, 2, 2)
-# ax1.plot(z, sol_Pp, label="pump", linewidth=2)
-# ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
-# ax1.grid()
-# ax1.legend(loc="upper left")
-# ax1.set_xlabel("position (m)")
-# ax1.set_ylabel("power (W)")
+fig = plt.figure(
+    num=f"power evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
+    figsize=np.array([11.16, 5.21]),
+)
+ax1 = fig.add_subplot(1, 2, 1)
+ax2 = fig.add_subplot(1, 2, 2)
+ax1.plot(z, sol_Pp, label="pump", linewidth=2)
+ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
+ax1.grid()
+ax1.legend(loc="upper left")
+ax1.set_xlabel("position (m)")
+ax1.set_ylabel("power (W)")
 
-# ax2.plot(z, n1, label="n1", linewidth=2)
-# ax2.plot(z, n2, label="n2", linewidth=2)
-# ax2.plot(z, n3, label="n3", linewidth=2)
-# ax2.plot(z, n4, label="n4", linewidth=2)
-# ax2.plot(z, n5, label="n5", linewidth=2)
-# ax2.grid()
-# ax2.legend(loc="best")
-# ax2.set_xlabel("position (m)")
-# ax2.set_ylabel("population inversion")
-# fig.tight_layout()
+ax2.plot(z, n1, label="n1", linewidth=2)
+ax2.plot(z, n2, label="n2", linewidth=2)
+ax2.plot(z, n3, label="n3", linewidth=2)
+ax2.plot(z, n4, label="n4", linewidth=2)
+ax2.plot(z, n5, label="n5", linewidth=2)
+ax2.grid()
+ax2.legend(loc="best")
+ax2.set_xlabel("position (m)")
+ax2.set_ylabel("population inversion")
+fig.tight_layout()
 
-# sim.plot(
-#     "wvl",
-#     num=f"spectral evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
-# )
+sim.plot(
+    "wvl",
+    num=f"spectral evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
+)
 
-# fig, ax = plt.subplots(
-#     1, 2, num=f"output for {length} normal edf and {length_pm1550} pm1550 pre-chirp"
-# )
-# p_wl = sim.p_v * dv_dl
-# ax[0].plot(pulse.wl_grid * 1e9, p_wl[0] / p_wl[0].max())
-# ax[0].plot(pulse.wl_grid * 1e9, p_wl[-1] / p_wl[-1].max())
-# ax[1].plot(pulse.t_grid * 1e12, sim.p_t[0] / sim.p_t[0].max())
-# ax[1].plot(pulse.t_grid * 1e12, sim.p_t[-1] / sim.p_t[-1].max())
+fig, ax = plt.subplots(
+    1, 2, num=f"output for {length} normal edf and {length_pm1550} pm1550 pre-chirp"
+)
+p_wl = sim.p_v * dv_dl
+ax[0].plot(pulse.wl_grid * 1e9, p_wl[0] / p_wl[0].max())
+ax[0].plot(pulse.wl_grid * 1e9, p_wl[-1] / p_wl[-1].max())
+ax[1].plot(pulse.t_grid * 1e12, sim.p_t[0] / sim.p_t[0].max())
+ax[1].plot(pulse.t_grid * 1e12, sim.p_t[-1] / sim.p_t[-1].max())
 
 # %% ------------ save results ------------------------------------------------
-np.save(
-    save_path + f"{length}_normal_edf_{length_pm1550}_pm1550.npy", sim.pulse_out.a_v
-)
+# np.save(
+#     save_path + f"{length}_normal_edf_{length_pm1550}_pm1550.npy", sim.pulse_out.a_v
+# )

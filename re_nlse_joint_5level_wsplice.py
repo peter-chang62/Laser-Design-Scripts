@@ -675,6 +675,9 @@ class Model_EDF(pynlo.model.Model):
             # always simulate up to the edge of a poled domain
             z_grid = np.unique(np.append(z_grid, list(self.mode.g2_inv)))
 
+        # splice point needs to be within the length of the fiber!
+        assert self.mode.z_spl < z_grid[-1], "splice point needs to be in the fiber"
+
         # ---- Setup
         z = z_grid[0]
         pulse_out = self.pulse.copy()
