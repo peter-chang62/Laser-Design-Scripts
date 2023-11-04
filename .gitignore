@@ -6,3 +6,5 @@ __pycache__/
 .spyproject/
 ipython_notebooks/.ipynb_checkpoints/
 fig/
+sim_output/11-03-2023_0.75Pfwd_1.5Pbck_pre-chirp_sweep/
+sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/
