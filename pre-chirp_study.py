@@ -21,7 +21,15 @@ km = 1e3
 W = 1.0
 
 output = collections.namedtuple("output", ["model", "sim"])
-save_path = r"sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
+# save_path = r"sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
+# save_path = (
+#     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+#     + "11-03-2023_2mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+# )
+save_path = (
+    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+    + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+)
 
 
 def propagate(fiber, pulse, length, n_records=None):
@@ -37,7 +45,7 @@ def propagate(fiber, pulse, length, n_records=None):
         output: model, sim
     """
     fiber: pynlo.materials.SilicaFiber
-    model = fiber.generate_model(pulse, t_shock=None, raman_on=False)
+    model = fiber.generate_model(pulse)
     dz = model.estimate_step_size()
     sim = model.simulate(length, dz=dz, n_records=n_records)
     return output(model=model, sim=sim)
@@ -114,7 +122,7 @@ dv_dl = pulse.v_grid**2 / c  # J / Hz -> J / m
 # pulse.import_p_v(v_grid, p_v, phi_v=phi_v)
 
 spec = np.genfromtxt(
-    "20231012-200MHz-beforepreamp-withsplitter.CSV", delimiter=",", skip_header=44
+    "20231012-200MHz-beforepreamp-nosplitter.CSV", delimiter=",", skip_header=44
 )
 spec[:, 0] = c / (spec[:, 0] * 1e-9)
 spec[:, 1] = 10 ** (spec[:, 1] / 10)
@@ -128,7 +136,7 @@ pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = 1.2 / (W * km)
 
-length_pm1550 = 5.0
+length_pm1550 = 3.0
 # ignore numpy error if length = 0.0, it occurs when n_records is not None and
 # propagation length is 0, the output pulse is still correct
 model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
@@ -147,7 +155,7 @@ sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
-length = 2.0
+length = 1.5
 
 edf = EDF(
     f_r=f_r,
@@ -169,8 +177,8 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_bck=None,
     edf=edf,
     length=length,
-    Pp_fwd=1.5 * loss_ins * loss_ins * loss_spl,
-    Pp_bck=1.5 * loss_ins * loss_ins * loss_spl,
+    Pp_fwd=1.2 * loss_ins * loss_ins * loss_spl,
+    Pp_bck=1.2 * loss_ins * loss_ins * loss_spl,
     n_records=100,
 )
 sim = sim_fwd
