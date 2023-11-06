@@ -39,7 +39,7 @@ def propagate(fiber, pulse, length):
         output: model, sim
     """
     fiber: pynlo.materials.SilicaFiber
-    model = fiber.generate_model(pulse, t_shock=None, raman_on=False)
+    model = fiber.generate_model(pulse)
     dz = model.estimate_step_size()
     sim = model.simulate(length, dz=dz, n_records=n_records)
     return output(model=model, sim=sim)
