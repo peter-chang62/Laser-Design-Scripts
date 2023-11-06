@@ -148,7 +148,7 @@ def amplify(p_fwd, p_bck, beta_1, beta_2, edf, length, Pp_fwd, Pp_bck, n_records
             while rk45.t < length:
                 model_bck.mode.z = rk45.t  # update z-dependent parameter
                 rk45.step()
-                if rk45.t >= edf_2.z_spl:
+                if rk45.t > edf_2.z_spl:
                     if not loss_applied:
                         rk45.y *= edf_2.loss_spl
                         loss_applied = True

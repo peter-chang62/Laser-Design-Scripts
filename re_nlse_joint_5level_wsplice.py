@@ -599,7 +599,7 @@ class Model_EDF(pynlo.model.Model):
                 self.mode.update_Pp()
 
                 # apply loss if z > z_spl
-                if z >= self.mode.z_spl:
+                if z > self.mode.z_spl:
                     if not self.loss_spl_applied:
                         a_v *= self.mode.loss_spl**0.5
                         self.mode.rk45_Pp.y *= self.mode.loss_spl
@@ -674,6 +674,9 @@ class Model_EDF(pynlo.model.Model):
         if self.mode.z_nonlinear.pol:  # support subclasses with poling
             # always simulate up to the edge of a poled domain
             z_grid = np.unique(np.append(z_grid, list(self.mode.g2_inv)))
+
+        # splice point needs to be within the length of the fiber!
+        assert self.mode.z_spl < z_grid[-1], "splice point needs to be in the fiber"
 
         # ---- Setup
         z = z_grid[0]
