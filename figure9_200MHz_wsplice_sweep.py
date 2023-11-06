@@ -20,7 +20,7 @@ um = 1e-6
 km = 1e3
 W = 1.0
 
-output_path = r"C:\\Users\\pchan\\OneDrive - UCB-O365\\sim_output\\200_MHz_ER_110_ER_80_35cm_350mW_pump/"
+output_path = r"C:\\Users\\pchan\\OneDrive - UCB-O365\\sim_output\\200_MHz_ER_110_ER_80_40cm_400mW_pump/"
 output = collections.namedtuple("output", ["model", "sim"])
 n_records = 100
 loss = 10 ** -(0.7 / 10)
@@ -126,14 +126,14 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 11.0
+D_rt = 4.5
 l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
 # ----- replace l_p_l for anomalous gain fiber
-l_g_a = 0.35 - l_g  # target 50 cm gain fiber total
+l_g_a = 0.40 - l_g  # target 50 cm gain fiber total
 l_p_l -= l_g_a
 
 assert np.all(np.array([l_g, l_p_s, l_p_l, l_g_a]) >= 0)
