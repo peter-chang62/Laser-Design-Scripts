@@ -34,9 +34,13 @@ output = collections.namedtuple("output", ["model", "sim"])
 #     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
 #     + "11-03-2023_1mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 # )
+# save_path = (
+#     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+#     + "11-03-2023_0.9mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+# )
 save_path = (
     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
-    + "11-03-2023_0.9mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+    + "11-03-2023_2.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 )
 
 
@@ -163,7 +167,7 @@ sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
-length = 0.9
+length = 2.5
 
 edf = EDF(
     f_r=f_r,
