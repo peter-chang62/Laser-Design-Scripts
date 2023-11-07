@@ -26,9 +26,17 @@ output = collections.namedtuple("output", ["model", "sim"])
 #     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
 #     + "11-03-2023_2mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 # )
+# save_path = (
+#     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+#     + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+# )
+# save_path = (
+#     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+#     + "11-03-2023_1mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+# )
 save_path = (
     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
-    + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+    + "11-03-2023_0.9mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 )
 
 
@@ -136,7 +144,7 @@ pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = 1.2 / (W * km)
 
-length_pm1550 = 3.0
+length_pm1550 = 4.25
 # ignore numpy error if length = 0.0, it occurs when n_records is not None and
 # propagation length is 0, the output pulse is still correct
 model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
@@ -155,7 +163,7 @@ sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
 sigma_p = spl_sigma_a(c / 980e-9)
 
-length = 1.5
+length = 0.9
 
 edf = EDF(
     f_r=f_r,
