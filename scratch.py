@@ -97,26 +97,21 @@ p_data.import_p_v(v_grid=spec[:, 0], p_v=spec[:, 1], phi_v=None)
 
 # %% --------------------------------------------------------------------------
 length_edf = 0.9
-length_pm1550 = np.arange(0, 5.25, 0.25)
-post_chirp_length = np.arange(0, 5.25, 0.25)
+length_pm1550 = np.round(np.arange(0, 3.01, 0.01), 2)
+post_chirp_length = np.arange(0, 3.01, 0.01)
 
 # path = "sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
 path = (
-    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_10/"
     + f"11-03-2023_{length_edf}mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 )
+print("using gamma 10")
 P_V = np.zeros((length_pm1550.size, post_chirp_length.size, pulse.n), dtype=float)
 P_T = np.zeros((length_pm1550.size, post_chirp_length.size, pulse.n), dtype=float)
-P_V_pm1550 = np.zeros(
-    (length_pm1550.size, post_chirp_length.size, pulse.n), dtype=float
-)
-P_V_hnlf = np.zeros(
-    (length_pm1550.size, post_chirp_length.size, pulse_hnlf.n), dtype=float
-)
 E_P = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
 V_W = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
 T_W = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
-SIM_HNLF = []
+ERR = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
 for n, i in enumerate(tqdm(length_pm1550)):
     a_v = np.load(path + f"{length_edf}_normal_edf_{i}_pm1550.npy")
     pulse.a_v[:] = a_v
@@ -131,7 +126,6 @@ for n, i in enumerate(tqdm(length_pm1550)):
             n_records=None,
             plot=None,
         )
-        P_V_pm1550[n, m] = sim_pm1550.p_v[-1]
         p_calc = sim_pm1550.pulse_out
 
         # ------ temporal and frequency bandwidth
@@ -143,7 +137,15 @@ for n, i in enumerate(tqdm(length_pm1550)):
         V_W[n, m] = vwidth.eqv
         T_W[n, m] = twidth.eqv
 
+        # ------ error calculation
+        p_data.e_p = p_calc.e_p
+        ERR[n, m] = np.mean((p_data.p_v - p_calc.p_v) ** 2) ** 0.5
+
 P_WL = P_V * dv_dl
+
+# %% ----- save results -------------------------------------------------------
+np.save(path + "post_chirp_sweep/P_V.npy", P_V)
+np.save(path + "post_chirp_sweep/P_T.npy", P_T)
 
 # %% -------------- plotting --------------------------------------------------
 fig, ax = plt.subplots(
@@ -180,6 +182,19 @@ fig, ax = plt.subplots(
 img = ax.pcolormesh(
     post_chirp_length, length_pm1550, V_W * 1e-12 / (T_W * 1e12), cmap="RdBu_r"
 )
+clb = plt.colorbar(mappable=img)
+clb.set_label("$\\mathrm{\\Delta \\nu / \\Delta t}$ (THz / ps)")
+ax.set_xlabel("post-chirp length (m)")
+ax.set_ylabel("pre-chirp length (m)")
+fig.tight_layout()
+
+fig, ax = plt.subplots(
+    1,
+    1,
+    num=f"error for {length_edf} m EDF",
+    figsize=np.array([4.02, 3.12]),
+)
+img = ax.pcolormesh(post_chirp_length, length_pm1550, ERR, cmap="RdBu_r")
 clb = plt.colorbar(mappable=img)
 clb.set_label("$\\mathrm{\\Delta \\nu / \\Delta t}$ (THz / ps)")
 ax.set_xlabel("post-chirp length (m)")

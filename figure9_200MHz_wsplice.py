@@ -38,7 +38,7 @@ def propagate(fiber, pulse, length):
         output: model, sim
     """
     fiber: pynlo.materials.SilicaFiber
-    model = fiber.generate_model(pulse)
+    model = fiber.generate_model(pulse, t_shock="auto", raman_on=True)
     dz = model.estimate_step_size()
     sim = model.simulate(length, dz=dz, n_records=n_records)
     return output(model=model, sim=sim)
@@ -125,8 +125,8 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 6.0
-l_p_s = 0.11  # length of straight section
+D_rt = 10.0
+l_p_s = 0.15  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
@@ -136,7 +136,9 @@ l_g_a = 0.40 - l_g  # target 50 cm gain fiber total
 l_p_l -= l_g_a
 
 assert np.all(np.array([l_g, l_p_s, l_p_l, l_g_a]) >= 0)
-print(f"normal gain: {l_g}, anomalous gain: {l_g_a} straight: {l_p_s}, passive in loop: {l_p_l}")
+print(
+    f"normal gain: {l_g}, anomalous gain: {l_g_a} straight: {l_p_s}, passive in loop: {l_p_l}"
+)
 
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
@@ -184,7 +186,7 @@ Pp = 350 * 1e-3
 phi = np.pi / 2
 
 # set up plot
-fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km")
+fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km, {np.round(Pp * 1e3, 3)} mW pump")
 ax[0, 0].set_xlabel("wavelength (nm)")
 ax[1, 0].set_xlabel("wavelength (nm)")
 ax[0, 1].set_xlabel("time (ps)")

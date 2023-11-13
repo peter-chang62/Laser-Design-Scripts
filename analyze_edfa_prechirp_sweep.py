@@ -96,12 +96,12 @@ p_data.import_p_v(v_grid=spec[:, 0], p_v=spec[:, 1], phi_v=None)
 
 # %% --------------------------------------------------------------------------
 length_edf = 0.9
-length_pm1550 = np.arange(0, 5.25, 0.25)
-post_chirp_length = 1.0
+length_pm1550 = np.round(np.arange(0, 3.01, 0.01), 2)
+post_chirp_length = 1.4
 
 # path = "sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
 path = (
-    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/"
+    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_5/"
     + f"11-03-2023_{length_edf}mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 )
 P_V = np.zeros((length_pm1550.size, pulse.n), dtype=float)
