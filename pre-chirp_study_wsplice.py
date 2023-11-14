@@ -114,7 +114,7 @@ dv_dl = pulse.v_grid**2 / c  # J / Hz -> J / m
 # pulse.import_p_v(v_grid, p_v, phi_v=phi_v)
 
 spec = np.genfromtxt(
-    "20231012-200MHz-beforepreamp-withsplitter.CSV", delimiter=",", skip_header=44
+    "Sichong/20231012-200MHz-beforepreamp-withsplitter.CSV", delimiter=",", skip_header=44
 )
 spec[:, 0] = c / (spec[:, 0] * 1e-9)
 spec[:, 1] = 10 ** (spec[:, 1] / 10)
