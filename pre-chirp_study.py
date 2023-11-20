@@ -83,12 +83,13 @@ omega0 = 2 * np.pi * c / 1560e-9
 polyfit_a = np.polyfit(omega - omega0, gvd_a[:, 1], deg=3)
 polyfit_a = polyfit_a[::-1]  # lowest order first
 
-gamma_n = 10 / (W * km)
+gamma_n = 10.0 / (W * km)
 gamma_a = 1.2 / (W * km)
 
 # %% ------------- pulse ------------------------------------------------------
 loss_ins = 10 ** (-0.7 / 10)
 loss_spl = 10 ** (-0.7 / 10)
+loss_mat = 10 ** (-1 / 10)
 
 f_r = 200e6
 n = 256
@@ -118,7 +119,7 @@ dv_dl = pulse.v_grid**2 / c  # J / Hz -> J / m
 # pulse.import_p_v(v_grid, p_v, phi_v=phi_v)
 
 spec = np.genfromtxt(
-    "20231012-200MHz-beforepreamp-nosplitter.CSV", delimiter=",", skip_header=44
+    "Sichong/20231012-200MHz-beforepreamp-nosplitter.CSV", delimiter=",", skip_header=44
 )
 spec[:, 0] = c / (spec[:, 0] * 1e-9)
 spec[:, 1] = 10 ** (spec[:, 1] / 10)
@@ -132,54 +133,102 @@ pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = 1.2 / (W * km)
 
-for length_pm1550 in np.arange(0.0, 3.01, 0.01):
-    # ignore numpy error if length = 0.0, it occurs when n_records is not None and
-    # propagation length is 0, the output pulse is still correct
-    model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
-    pulse_pm1550 = sim_pm1550.pulse_out
+length_pm1550 = 5.0
+# ignore numpy error if length = 0.0, it occurs when n_records is not None and
+# propagation length is 0, the output pulse is still correct
+model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
+pulse_pm1550 = sim_pm1550.pulse_out
 
-    # %% ------------ active fiber ------------------------------------------------
-    tau = 9 * ms
-    r_eff_n = 3.06 * um / 2
-    r_eff_a = 8.05 * um / 2
-    a_eff_n = np.pi * r_eff_n**2
-    a_eff_a = np.pi * r_eff_a**2
-    n_ion_n = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
-    n_ion_a = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+# %% ------------ active fiber ------------------------------------------------
+tau = 9 * ms
+r_eff_n = 3.06 * um / 2
+r_eff_a = 8.05 * um / 2
+a_eff_n = np.pi * r_eff_n**2
+a_eff_a = np.pi * r_eff_a**2
+n_ion_n = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion_a = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
-    sigma_a = spl_sigma_a(pulse.v_grid)
-    sigma_e = spl_sigma_e(pulse.v_grid)
-    sigma_p = spl_sigma_a(c / 980e-9)
+sigma_a = spl_sigma_a(pulse.v_grid)
+sigma_e = spl_sigma_e(pulse.v_grid)
+sigma_p = spl_sigma_a(c / 980e-9)
 
-    length = 0.9
+length = 1.5
 
-    edf = EDF(
-        f_r=f_r,
-        overlap_p=1.0,
-        overlap_s=1.0,
-        n_ion=n_ion_n,
-        a_eff=a_eff_n,
-        sigma_p=sigma_p,
-        sigma_a=sigma_a,
-        sigma_e=sigma_e,
-    )
-    edf.set_beta_from_beta_n(v0, polyfit_n)
-    beta_n = edf._beta(pulse.v_grid)
-    edf.gamma = gamma_n
+edf = EDF(
+    f_r=f_r,
+    overlap_p=1.0,
+    overlap_s=1.0,
+    n_ion=n_ion_n,
+    a_eff=a_eff_n,
+    sigma_p=sigma_p,
+    sigma_a=sigma_a,
+    sigma_e=sigma_e,
+)
+edf.set_beta_from_beta_n(v0, polyfit_n)
+beta_n = edf._beta(pulse.v_grid)
+edf.gamma = gamma_n
 
-    # %% ----------- edfa ---------------------------------------------------------
-    model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
-        p_fwd=pulse_pm1550,
-        p_bck=None,
-        edf=edf,
-        length=length,
-        Pp_fwd=1.2 * loss_ins * loss_ins * loss_spl,
-        Pp_bck=1.2 * loss_ins * loss_ins * loss_spl,
-        n_records=100,
-    )
-    sim = sim_fwd
+# %% ----------- edfa ---------------------------------------------------------
+model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+    p_fwd=pulse_pm1550,
+    p_bck=None,
+    edf=edf,
+    length=length,
+    Pp_fwd=1.2 * loss_ins * loss_ins * loss_spl * loss_mat * loss_mat,
+    Pp_bck=1.2 * loss_ins * loss_ins * loss_spl * loss_mat * loss_mat,
+    n_records=100,
+)
+sim = sim_fwd
 
-    # %% ------------ save results ------------------------------------------------
-    np.save(
-        save_path + f"{length}_normal_edf_{np.round(length_pm1550, 2)}_pm1550.npy", sim.pulse_out.a_v
-    )
+# %% ----------- plot results -------------------------------------------------
+sol_Pp = sim.Pp
+sol_Ps = np.sum(sim.p_v * pulse.dv * f_r, axis=1)
+z = sim.z
+n1 = sim.n1_n
+n2 = sim.n2_n
+n3 = sim.n3_n
+n4 = sim.n4_n
+n5 = sim.n5_n
+
+fig = plt.figure(
+    num=f"power evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
+    figsize=np.array([11.16, 5.21]),
+)
+ax1 = fig.add_subplot(1, 2, 1)
+ax2 = fig.add_subplot(1, 2, 2)
+ax1.plot(z, sol_Pp, label="pump", linewidth=2)
+ax1.plot(z, sol_Ps * loss_ins * loss_spl, label="signal", linewidth=2)
+ax1.grid()
+ax1.legend(loc="upper left")
+ax1.set_xlabel("position (m)")
+ax1.set_ylabel("power (W)")
+
+ax2.plot(z, n1, label="n1", linewidth=2)
+ax2.plot(z, n2, label="n2", linewidth=2)
+ax2.plot(z, n3, label="n3", linewidth=2)
+ax2.plot(z, n4, label="n4", linewidth=2)
+ax2.plot(z, n5, label="n5", linewidth=2)
+ax2.grid()
+ax2.legend(loc="best")
+ax2.set_xlabel("position (m)")
+ax2.set_ylabel("population inversion")
+fig.tight_layout()
+
+sim.plot(
+    "wvl",
+    num=f"spectral evolution for {length} normal edf and {length_pm1550} pm1550 pre-chirp",
+)
+
+fig, ax = plt.subplots(
+    1, 2, num=f"output for {length} normal edf and {length_pm1550} pm1550 pre-chirp"
+)
+p_wl = sim.p_v * dv_dl
+ax[0].plot(pulse.wl_grid * 1e9, p_wl[0] / p_wl[0].max())
+ax[0].plot(pulse.wl_grid * 1e9, p_wl[-1] / p_wl[-1].max())
+ax[1].plot(pulse.t_grid * 1e12, sim.p_t[0] / sim.p_t[0].max())
+ax[1].plot(pulse.t_grid * 1e12, sim.p_t[-1] / sim.p_t[-1].max())
+
+# %% ------------ save results ------------------------------------------------
+# np.save(
+#     save_path + f"{length}_normal_edf_{length_pm1550}_pm1550.npy", sim.pulse_out.a_v
+# )

@@ -1,13 +1,17 @@
+"""
+takes the output files of pre-chirp_edfa_sweep.py and computes a post-chirp
+sweep. So, the final result is a 2D sweep of pre-chirp and post-chirp.
+"""
+
 # %% --- imports
 import numpy as np
 import matplotlib.pyplot as plt
-import clipboard
-import pandas as pd
 from scipy.constants import c
 import pynlo
 import collections
-import copy
 from tqdm import tqdm
+import clipboard
+
 
 ns = 1e-9
 ps = 1e-12
@@ -43,12 +47,12 @@ def propagate(fiber, pulse, length, n_records=None, plot=None):
 
 
 # %% ------------- pulse ------------------------------------------------------
-f_r = 200e6
+f_r = 100e6
 n = 256
 v_min = c / 1750e-9
 v_max = c / 1400e-9
 v0 = c / 1560e-9
-e_p = 35e-3 / 2 / f_r
+e_p = 5e-3 / f_r
 
 t_fwhm = 2e-12
 min_time_window = 20e-12
@@ -69,7 +73,7 @@ pulse_hnlf = pynlo.light.Pulse.Sech(
     v_min=c / 3000e-9,
     v_max=c / 850e-9,
     v0=c / 1560e-9,
-    e_p=1e-3 / f_r,
+    e_p=e_p,
     t_fwhm=200e-15,
     min_time_window=20e-12,
     alias=2,
@@ -85,34 +89,41 @@ adhnlf.load_fiber_from_dict(pynlo.materials.hnlf_5p7)
 
 
 # %% ------------- experimental data ------------------------------------------
-spec = np.genfromtxt(
-    "20231103-200MHz-preamp4A-withsplitter-front16inches.CSV",
-    delimiter=",",
-    skip_header=44,
-)
+# spec = np.genfromtxt(
+#     "Sichong/20231103-200MHz-preamp4A-withsplitter-front16inches.CSV",
+#     delimiter=",",
+#     skip_header=44,
+# )
+spec = np.genfromtxt("Matt/bottomAmpSpectrum110923.CSV", delimiter=",", skip_header=39)
 spec[:, 0] = c / (spec[:, 0] * 1e-9)
 spec[:, 1] = 10 ** (spec[:, 1] / 10) * spec[:, 0] ** 2 / c
 p_data = pulse.copy()
 p_data.import_p_v(v_grid=spec[:, 0], p_v=spec[:, 1], phi_v=None)
 
 # %% --------------------------------------------------------------------------
-length_edf = 0.9
-length_pm1550 = np.round(np.arange(0, 3.01, 0.01), 2)
+length_edf = 1.5
+
+# pre_chirp = np.round(np.arange(0, 3.01, 0.01), 2)
+# post_chirp_length = np.arange(0, 3.01, 0.01)
+
+pre_chirp = np.round(np.arange(0.0, 15.05, 0.05), 2)
 post_chirp_length = np.arange(0, 3.01, 0.01)
 
 # path = "sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
-path = (
-    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_10/"
-    + f"11-03-2023_{length_edf}mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
-)
-print("using gamma 10")
-P_V = np.zeros((length_pm1550.size, post_chirp_length.size, pulse.n), dtype=float)
-P_T = np.zeros((length_pm1550.size, post_chirp_length.size, pulse.n), dtype=float)
-E_P = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
-V_W = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
-T_W = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
-ERR = np.zeros((length_pm1550.size, post_chirp_length.size), dtype=float)
-for n, i in enumerate(tqdm(length_pm1550)):
+# path = (
+#     r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_6.5/"
+#     # + f"11-03-2023_{length_edf}mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+#     + f"11-03-2023_{length_edf}mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep_mat_Pploss/"
+# )
+path = r"sim_output/Matt_100MHz_Menlo/gamma_6.5/1.5mEDF_2Wfwd_2W_bck_pre-chirp_sweep/"
+
+P_V = np.zeros((pre_chirp.size, post_chirp_length.size, pulse.n), dtype=float)
+P_T = np.zeros((pre_chirp.size, post_chirp_length.size, pulse.n), dtype=float)
+E_P = np.zeros((pre_chirp.size, post_chirp_length.size), dtype=float)
+V_W = np.zeros((pre_chirp.size, post_chirp_length.size), dtype=float)
+T_W = np.zeros((pre_chirp.size, post_chirp_length.size), dtype=float)
+ERR = np.zeros((pre_chirp.size, post_chirp_length.size), dtype=float)
+for n, i in enumerate(tqdm(pre_chirp)):
     a_v = np.load(path + f"{length_edf}_normal_edf_{i}_pm1550.npy")
     pulse.a_v[:] = a_v
 
@@ -144,8 +155,10 @@ for n, i in enumerate(tqdm(length_pm1550)):
 P_WL = P_V * dv_dl
 
 # %% ----- save results -------------------------------------------------------
-np.save(path + "post_chirp_sweep/P_V.npy", P_V)
-np.save(path + "post_chirp_sweep/P_T.npy", P_T)
+np.save(path + "post_chirp_sweep/P_V_0.0to3.0_.01step.npy", P_V)
+np.save(path + "post_chirp_sweep/P_T_0.0to3.0_.01step.npy", P_T)
+np.save(path + "post_chirp_sweep/V_W_0.0to3.0_.01step.npy", V_W)
+np.save(path + "post_chirp_sweep/T_W_0.0to3.0_.01step.npy", T_W)
 
 # %% -------------- plotting --------------------------------------------------
 fig, ax = plt.subplots(
@@ -155,7 +168,7 @@ fig, ax = plt.subplots(
     figsize=np.array([4.02, 3.12]),
 )
 img = ax.pcolormesh(
-    post_chirp_length, length_pm1550, c * 1e9 / v0**2 * V_W, cmap="RdBu_r"
+    post_chirp_length, pre_chirp, c * 1e9 / v0**2 * V_W, cmap="RdBu_r"
 )
 clb = plt.colorbar(mappable=img)
 clb.set_label("spectral bandwidth (nm)")
@@ -166,7 +179,7 @@ fig.tight_layout()
 fig, ax = plt.subplots(
     1, 1, num=f"pulse duration for {length_edf} m EDF", figsize=np.array([4.02, 3.12])
 )
-img = ax.pcolormesh(post_chirp_length, length_pm1550, T_W * 1e12, cmap="RdBu_r")
+img = ax.pcolormesh(post_chirp_length, pre_chirp, T_W * 1e12, cmap="RdBu_r")
 clb = plt.colorbar(mappable=img)
 clb.set_label("pulse duration (ps)")
 ax.set_xlabel("post-chirp length (m)")
@@ -180,7 +193,7 @@ fig, ax = plt.subplots(
     figsize=np.array([4.02, 3.12]),
 )
 img = ax.pcolormesh(
-    post_chirp_length, length_pm1550, V_W * 1e-12 / (T_W * 1e12), cmap="RdBu_r"
+    post_chirp_length, pre_chirp, V_W * 1e-12 / (T_W * 1e12), cmap="RdBu_r"
 )
 clb = plt.colorbar(mappable=img)
 clb.set_label("$\\mathrm{\\Delta \\nu / \\Delta t}$ (THz / ps)")
@@ -194,7 +207,7 @@ fig, ax = plt.subplots(
     num=f"error for {length_edf} m EDF",
     figsize=np.array([4.02, 3.12]),
 )
-img = ax.pcolormesh(post_chirp_length, length_pm1550, ERR, cmap="RdBu_r")
+img = ax.pcolormesh(post_chirp_length, pre_chirp, ERR, cmap="RdBu_r")
 clb = plt.colorbar(mappable=img)
 clb.set_label("$\\mathrm{\\Delta \\nu / \\Delta t}$ (THz / ps)")
 ax.set_xlabel("post-chirp length (m)")
