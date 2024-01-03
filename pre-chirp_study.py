@@ -23,7 +23,7 @@ W = 1.0
 output = collections.namedtuple("output", ["model", "sim"])
 # save_path = r"sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
 save_path = (
-    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_10/"
+    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_6.5/"
     + "11-03-2023_0.9mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
 )
 
@@ -83,7 +83,7 @@ omega0 = 2 * np.pi * c / 1560e-9
 polyfit_a = np.polyfit(omega - omega0, gvd_a[:, 1], deg=3)
 polyfit_a = polyfit_a[::-1]  # lowest order first
 
-gamma_n = 10.0 / (W * km)
+gamma_n = 6.5 / (W * km)
 gamma_a = 1.2 / (W * km)
 
 # %% ------------- pulse ------------------------------------------------------
@@ -131,9 +131,9 @@ pulse.import_p_v(spec[:, 0], spec[:, 1], phi_v=None)
 # %% ---------- optional passive fiber ----------------------------------------
 pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
-pm1550.gamma = 1.2 / (W * km)
+pm1550.gamma = gamma_a / (W * km)
 
-length_pm1550 = 5.0
+length_pm1550 = 3.5
 # ignore numpy error if length = 0.0, it occurs when n_records is not None and
 # propagation length is 0, the output pulse is still correct
 model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
