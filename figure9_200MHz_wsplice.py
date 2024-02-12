@@ -61,8 +61,11 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 
 # %% -------------- load dispersion coefficients ------------------------------
 frame_normal = pd.read_excel(
-    "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+    "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
 )
+# frame_normal = pd.read_excel(
+#     "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+# )
 frame_anomalous = pd.read_excel(
     "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
 )
@@ -82,7 +85,7 @@ polyfit_a = np.polyfit(omega - omega0, gvd_a[:, 1], deg=3)
 polyfit_a = polyfit_a[::-1]  # lowest order first
 
 # %% ------------- pulse ------------------------------------------------------
-f_r = 200e6
+f_r = 203e6
 n = 256
 v_min = c / 1750e-9
 v_max = c / 1400e-9
@@ -118,21 +121,15 @@ D_g = -2 * np.pi * c / 1560e-9**2 * beta2_g / ps * nm * km
 D_p = 18
 l_t = c / 1.5 / f_r  # total cavity length
 
-# ----- target round trip dispersion in the loop
-# D_l = 2
-# l_p_s = 0.15  # shortest straight section I can do
-# l_g = (D_l - D_p) * (l_t - 2 * l_p_s) / (D_g - D_p)
-# l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
-
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 10.0
-l_p_s = 0.15  # length of straight section
+D_rt = 6.5
+l_p_s = 0.11  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
 # ----- replace l_p_l for anomalous gain fiber
-l_g_a = 0.40 - l_g  # target 50 cm gain fiber total
+l_g_a = 0.4 - l_g  # target 50 cm gain fiber total
 l_p_l -= l_g_a
 
 assert np.all(np.array([l_g, l_p_s, l_p_l, l_g_a]) >= 0)
@@ -146,7 +143,8 @@ r_eff_n = 3.06 * um / 2
 r_eff_a = 8.05 * um / 2
 a_eff_n = np.pi * r_eff_n**2
 a_eff_a = np.pi * r_eff_a**2
-n_ion_n = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+# n_ion_n = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion_n = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 n_ion_a = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
 sigma_a = spl_sigma_a(pulse.v_grid)
@@ -182,7 +180,7 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 350 * 1e-3
+Pp = 450 * 1e-3
 phi = np.pi / 2
 
 # set up plot
@@ -208,7 +206,8 @@ while not done:
 
     # ------------- passive fiber first --------------------------
     # passive fiber
-    p_pf.a_t[:] = propagate(pm1550, p_pf, l_p_l).sim.pulse_out.a_t[:]
+    p_pf.a_t[:] = propagate(pm1550, p_pf, l_p_l * 4 / 5).sim.pulse_out.a_t[:]
+    p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l * 1 / 5).sim.pulse_out.a_t[:]
 
     if include_loss:
         p_pf.p_v[:] *= loss  # phase bias insertion loss
@@ -234,7 +233,8 @@ while not done:
         p_gf.p_v[:] *= loss  # phase bias insertion loss
 
     # passive fiber
-    p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l).sim.pulse_out.a_t[:]
+    p_pf.a_t[:] = propagate(pm1550, p_pf, l_p_l * 1 / 5).sim.pulse_out.a_t[:]
+    p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l * 4 / 5).sim.pulse_out.a_t[:]
 
     if include_loss:
         # p_pf.p_v[:] *= loss  # splice from gain to splitter

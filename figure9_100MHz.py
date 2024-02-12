@@ -126,26 +126,33 @@ edf = EDF(
 edf.set_beta_from_beta_n(v0, polyfit)  # only gdd
 edf.gamma = gamma_edf / (W * km)
 
+# passive edf fiber, new development from NLight
+edf_passive = pynlo.materials.SilicaFiber()
+edf_passive.set_beta_from_beta_n(v0, polyfit)
+edf_passive.gamma = gamma_edf / (W * km)
+
 # %% ------- figure 9 laser cavity --------------------------------------------
 beta2_g = polyfit[0]
 D_g = -2 * np.pi * c / 1560e-9**2 * beta2_g / ps * nm * km
 D_p = 18
 l_t = c / 1.5 / f_r  # total cavity length
 
-# ----- target round trip dispersion in the loop
-# D_l = 7
-# l_p_s = 0.11  # shortest straight section I can do
-# l_g = (D_l - D_p) * (l_t - 2 * l_p_s) / (D_g - D_p)
-# l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
-
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 3.5
+D_rt = 2.0
 l_p_s = 0.15  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
+# including passive edf fiber BETWEEN GAIN FIBER AND PHASE BIAS
+# l_g_p = l_g - 0.90  # target 60 cm of gain fiber
+l_g_p = 0.0
+l_g -= l_g_p
+
 assert np.all(np.array([l_g, l_p_s, l_p_l]) >= 0)
+print(
+    f"normal gain: {l_g}, straight: {l_p_s}, passive in loop: {l_p_l}, passive edf: {l_g_p}"
+)
 
 p_gf = pulse.copy()  # gain first
 p_pf = pulse.copy()  # passive first
@@ -153,12 +160,12 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 75 * 1e-3
+Pp = 70 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 
 # set up plot
-fig, ax = plt.subplots(2, 2)
+fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km, {np.round(Pp * 1e3, 3)} mW pump")
 ax[0, 0].set_xlabel("wavelength (nm)")
 ax[1, 0].set_xlabel("wavelength (nm)")
 ax[0, 1].set_xlabel("time (ps)")
@@ -175,9 +182,8 @@ while not done:
     p_pf.a_t[:] = p_s.a_t[:] / 2  # straight / 2
 
     # ------------- gain fiber first --------------------------
-    # gain section
     if include_loss:
-        p_gf.p_v[:] *= loss  # splice from splitter to gain
+        p_gf.p_v[:] *= loss  # splice from splitter to edf
 
     # ------------- passive fiber first --------------------------
     # passive fiber
@@ -185,7 +191,9 @@ while not done:
 
     if include_loss:
         p_pf.p_v[:] *= loss  # phase bias insertion loss
-        p_pf.p_v[:] *= loss  # splice from phase bias to gain
+        p_pf.p_v[:] *= loss  # splice from phase bias to edf
+
+    p_pf.a_t[:] = propagate(edf_passive, p_pf, l_g_p).sim.pulse_out.a_t[:]
 
     # ----------- gain section ---------------------------------
     model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
@@ -200,15 +208,17 @@ while not done:
     p_gf.a_t[:] = sim_fwd.pulse_out.a_t[:]
     p_pf.a_t[:] = sim_bck.pulse_out.a_t[:]
 
+    p_gf.a_t[:] = propagate(edf_passive, p_gf, l_g_p).sim.pulse_out.a_t[:]
+
     if include_loss:
-        p_gf.p_v[:] *= loss  # splice from gain to phase bias
+        p_gf.p_v[:] *= loss  # splice from edf to phase bias
         p_gf.p_v[:] *= loss  # phase bias insertion loss
 
     # passive fiber
     p_gf.a_t[:] = propagate(pm1550, p_gf, l_p_l).sim.pulse_out.a_t[:]
 
     if include_loss:
-        p_pf.p_v[:] *= loss  # splice from gain to splitter
+        p_pf.p_v[:] *= loss  # splice from edf to splitter
 
     # ------------- back to splitter --------------------------
     p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) + p_pf.a_t[:]

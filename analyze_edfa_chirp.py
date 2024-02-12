@@ -10,6 +10,7 @@ import copy
 from pynlo.utility import resample_v, resample_t
 from tqdm import tqdm
 import blit
+import time
 
 ns = 1e-9
 ps = 1e-12
@@ -30,9 +31,6 @@ PowerSpectralWidth = collections.namedtuple(
 PowerEnvelopeWidth = collections.namedtuple(
     "PowerEnvelopeWidth", ["fwhm", "rms", "eqv"]
 )
-
-loss_ins = 10 ** (-0.7 / 10)
-loss_spl = 10 ** (-0.7 / 10)
 
 
 def propagate(fiber, pulse, length, n_records=None, plot=None):
@@ -171,12 +169,16 @@ def t_width(t_grid, p_t, m=None):
 
 
 # %% --------------------------------------------------------------------------
+loss_ins = 10 ** (-0.7 / 10)
+loss_spl = 10 ** (-0.7 / 10)
+loss_mat = 10 ** (-1 / 10)
+
 f_r = 200e6
 n = 256
 v_min = c / 1750e-9
 v_max = c / 1400e-9
 v0 = c / 1560e-9
-e_p = 35e-3 / 2 / f_r
+e_p = 35e-3 / 2 / f_r * loss_ins * loss_spl  # mating sleeve mainly affects pump
 
 t_fwhm = 2e-12
 min_time_window = 20e-12
@@ -206,33 +208,20 @@ p_data = pulse.copy()
 p_data.import_p_v(v_grid=spec[:, 0], p_v=spec[:, 1], phi_v=None)
 
 # %% --------------------------------------------------------------------------
-path = (
+path = (  # Sichong's stuff
     "sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_6.5/"
     # + "11-03-2023_0.9mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
-    + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
-    # + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep_mat_Pploss/"
+    # + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
+    + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep_mat_Pploss/"
     + "post_chirp_sweep/"
 )
-# path = (
+# path = (  # Matt's stuff
 #     r"sim_output/Matt_100MHz_Menlo/gamma_6.5/"
 #     + "1.5mEDF_2Wfwd_2W_bck_pre-chirp_sweep/post_chirp_sweep/"
 # )
-pre_chirp = np.arange(0.0, 3.01, 0.01)
+
+pre_chirp = np.arange(0.0, 4.01, 0.01)
 post_chirp = np.arange(0.0, 3.01, 0.01)
-
-# P_V = np.load(path + "P_V.npy")
-# P_T = np.load(path + "P_T.npy")
-# V_width = np.zeros(P_V.shape[:2])
-# T_width = np.zeros(P_T.shape[:2])
-# for n, i in enumerate(tqdm(P_T)):
-#     for m, j in enumerate(i):
-#         T_width[n, m] = t_width(pulse.t_grid, j, m=200).eqv
-# for n, i in enumerate(tqdm(P_V)):
-#     for m, j in enumerate(i):
-#         V_width[n, m] = v_width(pulse.v_grid, j, m=200).eqv
-
-# np.save(path + "V_W.npy", V_width)
-# np.save(path + "T_W.npy", T_width)
 
 # %% --------------------------------------------------------------------------
 # P_V = np.load(path + "P_V_0.0to3.0_.01step.npy")
@@ -248,22 +237,17 @@ V_W = np.load(path + "V_W.npy")
 T_W = np.load(path + "T_W.npy")
 
 E_P = np.sum(P_V * pulse.dv, axis=-1)
-ERR = np.zeros(E_P.shape)
 p_data.e_p = E_P.mean()
 
-for n, i in enumerate(P_WL):
-    for m, j in enumerate(i):
-        ERR[n, m] = np.mean((p_data.p_v - j) ** 2) ** 0.5
-
-# %% --------------------------------------------------------------------------
-# crazy plotting (300 figures) lol
-# for i in P_WL:
-#     plt.figure()
-#     [plt.plot(pulse.wl_grid * 1e9, j) for j in i]
-#     plt.plot(pulse.wl_grid * 1e9, p_data.p_v * dv_dl, "k", linewidth=2)
+# ERR = np.zeros(E_P.shape)
+# for n, i in enumerate(P_WL):
+#     for m, j in enumerate(i):
+#         ERR[n, m] = np.mean((p_data.p_v / p_data.p_v.max() - j / j.max()) ** 2) ** 0.5
 
 # %% --------------------------------------------------------------------------
 # instead of crazy plotting (300) figures, animate it with blit instead
+# p_wl = P_WL[:, 50]
+
 # fig, ax = plt.subplots(1, 1)
 # (l1,) = ax.plot(
 #     pulse.wl_grid * 1e9,
@@ -274,7 +258,7 @@ for n, i in enumerate(P_WL):
 # )
 # (l2,) = ax.plot(
 #     pulse.wl_grid * 1e9,
-#     P_WL[0, 0],
+#     p_wl[0],
 #     linewidth=2,
 #     animated=True,
 # )
@@ -282,18 +266,20 @@ for n, i in enumerate(P_WL):
 
 # bm = blit.BlitManager(fig.canvas, [l1, l2])
 # bm.update()
-# for i in P_WL.reshape((P_WL.shape[0] * P_WL.shape[1], P_WL.shape[2])):
+# for i in p_wl[1:]:
 #     l2.set_ydata(i)
 #     bm.update()
+#     time.sleep(.01)
 
 # %% --------------------------------------------------------------------------
 # I think it's only the ones with a lot of pre-chirp that match okay?
-fig, ax = plt.subplots(1, 1)
-[ax.plot(pulse.wl_grid * 1e9, i) for i in P_WL[-1]]
-ax.plot(p_data.wl_grid * 1e9, p_data.p_v * p_data.v_grid**2 / c, "k--", linewidth=2)
+# p_wl = P_WL[330]
+# p_t = P_T[330]
 
-fig, ax = plt.subplots(1, 1)
-idx = -1
-p_t = P_T[idx]
-icorr = np.asarray([np.convolve(i, i[::-1], mode="same") for i in p_t])
-[ax.plot(pulse.t_grid * 1e15, i) for i in icorr]
+# fig, ax = plt.subplots(1, 1)
+# [ax.plot(pulse.wl_grid * 1e9, i) for i in p_wl]
+# ax.plot(p_data.wl_grid * 1e9, p_data.p_v * p_data.v_grid**2 / c, "k--", linewidth=2)
+
+# fig, ax = plt.subplots(1, 1)
+# icorr = np.asarray([np.convolve(i, i[::-1], mode="same") * pulse.dt for i in p_t])
+# [ax.plot(pulse.t_grid * 1e15, i) for i in icorr]

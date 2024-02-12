@@ -104,9 +104,9 @@ pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = gamma_pm1550 / (W * km)
 
 # %% ------------ active fiber ------------------------------------------------
-tau = 9 * ms
 r_eff = 3.06 * um / 2
 a_eff = np.pi * r_eff**2
+# n_ion = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
 sigma_a = spl_sigma_a(pulse.v_grid)
@@ -139,13 +139,14 @@ l_t = c / 1.5 / f_r  # total cavity length
 # l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
 
 # ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 4.5
-l_p_s = 0.11  # length of straight section
+D_rt = 2.0
+l_p_s = 0.075  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
 
 assert np.all(np.array([l_g, l_p_s, l_p_l]) >= 0)
+print(f"normal gain: {l_g}, straight: {l_p_s}, passive in loop: {l_p_l}")
 
 p_gf = pulse.copy()  # gain first
 p_pf = pulse.copy()  # passive first
@@ -153,12 +154,12 @@ p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
 # parameters
-Pp = 650 * 1e-3
+Pp = 600 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
 
 # set up plot
-fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km")
+fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km, {np.round(Pp * 1e3, 3)} mW pump")
 ax[0, 0].set_xlabel("wavelength (nm)")
 ax[1, 0].set_xlabel("wavelength (nm)")
 ax[0, 1].set_xlabel("time (ps)")

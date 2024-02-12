@@ -112,28 +112,19 @@ pulse = pynlo.light.Pulse.Sech(
 )
 dv_dl = pulse.v_grid**2 / c  # J / Hz -> J / m
 
-# a_v = np.load("sim_output/200MHz_6psnmkm_40cm_totaledf_400mW_pump.npy")
-# v_grid = np.load("sim_output/v_grid.npy")
-# phi_v = np.unwrap(np.angle(a_v))  # unwrap for fitting
-# p_v = abs(a_v) ** 2
-# pulse.import_p_v(v_grid, p_v, phi_v=phi_v)
-
-spec = np.genfromtxt(
-    "Sichong/20231012-200MHz-beforepreamp-nosplitter.CSV", delimiter=",", skip_header=44
-)
-spec[:, 0] = c / (spec[:, 0] * 1e-9)
-spec[:, 1] = 10 ** (spec[:, 1] / 10)
-spec[::] = spec[::-1]
-dl_dv = c / spec[:, 0] ** 2  # J / m -> J / Hz (could be off by an overall scale)
-spec[:, 1] *= dl_dv
-pulse.import_p_v(spec[:, 0], spec[:, 1], phi_v=None)
+spec = np.genfromtxt("Sichong/osc_build_v2/osc_500.CSV", skip_header=44, delimiter=",")
+spec[:, 1] = 10 ** (spec[:, 1] / 10)  # dB -> linear
+spec[:, 0] = c / (spec[:, 0] * 1e-9)  # wavelength -> frequency
+spec[:, 1] *= c / spec[:, 0] ** 2  # J / m -> J / Hz
+spec[:, 1] /= spec[:, 1].max()  # normalize
+pulse.import_p_v(spec[:, 0], spec[:, 1], phi_v=np.zeros(spec[:, 1].size))
 
 # %% ---------- optional passive fiber ----------------------------------------
 pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = gamma_a / (W * km)
 
-length_pm1550 = 3.5
+length_pm1550 = 1.119
 # ignore numpy error if length = 0.0, it occurs when n_records is not None and
 # propagation length is 0, the output pulse is still correct
 model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
@@ -174,8 +165,8 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_bck=None,
     edf=edf,
     length=length,
-    Pp_fwd=1.2 * loss_ins * loss_ins * loss_spl * loss_mat * loss_mat,
-    Pp_bck=1.2 * loss_ins * loss_ins * loss_spl * loss_mat * loss_mat,
+    Pp_fwd=0 * loss_ins * loss_spl,
+    Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,
 )
 sim = sim_fwd
@@ -227,8 +218,3 @@ ax[0].plot(pulse.wl_grid * 1e9, p_wl[0] / p_wl[0].max())
 ax[0].plot(pulse.wl_grid * 1e9, p_wl[-1] / p_wl[-1].max())
 ax[1].plot(pulse.t_grid * 1e12, sim.p_t[0] / sim.p_t[0].max())
 ax[1].plot(pulse.t_grid * 1e12, sim.p_t[-1] / sim.p_t[-1].max())
-
-# %% ------------ save results ------------------------------------------------
-# np.save(
-#     save_path + f"{length}_normal_edf_{length_pm1550}_pm1550.npy", sim.pulse_out.a_v
-# )

@@ -1,3 +1,17 @@
+"""
+Things to keep track of:
+
+    8. save path
+    1. rep-rate
+    2. pulse energy
+    7. loaded starting pulse
+    3. length of edf
+    4. pump power
+        1. forward and backward pumping
+    5. pre-chirp length
+    6. post chirp length
+"""
+
 # %% ----- imports
 from scipy.constants import c
 import pandas as pd
@@ -43,14 +57,7 @@ def propagate(fiber, pulse, length, n_records=None, plot=None):
 
 
 # %% -------------- save paths ------------------------------------------------
-save_path = (
-    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_6.5/"
-    # + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
-    + "11-03-2023_1.5mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep_mat_Pploss/"
-)
-# save_path = (
-#     r"sim_output/Matt_100MHz_Menlo/gamma_6.5/1.5mEDF_2Wfwd_2W_bck_pre-chirp_sweep/"
-# )
+save_path = r"sim_output/200MHz_osc_v2/"
 
 # %% -------------- load absorption coefficients from NLight ------------------
 sigma = pd.read_excel("NLight_provided/Erbium Cross Section - nlight_pump+signal.xlsx")
@@ -101,7 +108,7 @@ n = 256
 v_min = c / 1750e-9
 v_max = c / 1400e-9
 v0 = c / 1560e-9
-e_p = 35e-3 / 2 / f_r * loss_ins * loss_spl  # mating sleeve mainly affects pump
+e_p = 16e-3 / f_r * loss_ins * loss_spl
 
 t_fwhm = 2e-12
 min_time_window = 20e-12
@@ -117,27 +124,22 @@ pulse = pynlo.light.Pulse.Sech(
 )
 dv_dl = pulse.v_grid**2 / c  # J / Hz -> J / m
 
-# a_v = np.load("sim_output/200MHz_6psnmkm_40cm_totaledf_400mW_pump.npy")
-# v_grid = np.load("sim_output/v_grid.npy")
-# phi_v = np.unwrap(np.angle(a_v))  # unwrap for fitting
-# p_v = abs(a_v) ** 2
-# pulse.import_p_v(v_grid, p_v, phi_v=phi_v)
+# spec = np.load("sim_output/200MHz_2psnmkm_450mW_pump_ER80.npy")
+# v_grid = spec[:, 0].real
+# a_v = spec[:, 1]
+# pulse.import_p_v(v_grid, abs(a_v) ** 2, phi_v=np.unwrap(np.angle(a_v)))
 
-spec = np.genfromtxt(
-    "Sichong/20231012-200MHz-beforepreamp-nosplitter.CSV", delimiter=",", skip_header=44
-)
-# spec = np.genfromtxt("Matt/bottomAmpInput.CSV", delimiter=",", skip_header=39)
-spec[:, 0] = c / (spec[:, 0] * 1e-9)
-spec[:, 1] = 10 ** (spec[:, 1] / 10)
-spec[::] = spec[::-1]
-dl_dv = c / spec[:, 0] ** 2  # J / m -> J / Hz (could be off by an overall scale)
-spec[:, 1] *= dl_dv
-pulse.import_p_v(spec[:, 0], spec[:, 1], phi_v=None)
+spec = np.genfromtxt("Sichong/osc_build_v2/osc_500.CSV", skip_header=44, delimiter=",")
+spec[:, 1] = 10 ** (spec[:, 1] / 10)  # dB -> linear
+spec[:, 0] = c / (spec[:, 0] * 1e-9)  # wavelength -> frequency
+spec[:, 1] *= c / spec[:, 0] ** 2  # J / m -> J / Hz
+spec[:, 1] /= spec[:, 1].max()  # normalize
+pulse.import_p_v(spec[:, 0], spec[:, 1], phi_v=np.zeros(spec[:, 1].size))
 
 # %% ---------- passive fiber -------------------------------------------------
 pm1550 = pynlo.materials.SilicaFiber()
 pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
-pm1550.gamma = gamma_a / (W * km)
+pm1550.gamma = gamma_a
 
 # %% ------------ active fiber ------------------------------------------------
 tau = 9 * ms
@@ -169,22 +171,36 @@ beta_n = edf._beta(pulse.v_grid)
 edf.gamma = gamma_n
 
 # %% ----- pre-chirp sweep ----------------------------------------------------
-# for _, pre_chirp in enumerate(tqdm(np.arange(3.0, 4.01, 0.01))):
+# for _, pre_chirp in enumerate(tqdm(np.arange(2.0, 3.0, 0.01))):
 #     # ignore numpy error if length = 0.0, it occurs when n_records is not None and
 #     # propagation length is 0, the output pulse is still correct
 #     model_pm1550, sim_pm1550 = propagate(pm1550, pulse, pre_chirp)
 #     pulse_pm1550 = sim_pm1550.pulse_out
 
 #     # %% ----- edfa
+
+#     # forward and backward pumping
 #     model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
 #         p_fwd=pulse_pm1550,
 #         p_bck=None,
 #         edf=edf,
 #         length=length,
-#         Pp_fwd=2 * loss_ins * loss_ins * loss_spl * loss_mat,
-#         Pp_bck=2 * loss_ins * loss_ins * loss_spl * loss_mat,
+#         Pp_fwd=1 * loss_ins * loss_spl,  # * loss_mat,
+#         Pp_bck=1 * loss_ins * loss_spl,  # * loss_mat,
 #         n_records=100,
 #     )
+
+#     # backward pumping only
+#     # model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+#     #     p_fwd=pulse_pm1550,
+#     #     p_bck=None,
+#     #     edf=edf,
+#     #     length=length,
+#     #     Pp_fwd=0,
+#     #     Pp_bck=0.75 * loss_spl,
+#     #     n_records=100,
+#     # )
+
 #     sim = sim_fwd
 
 #     # %% ----- save results
@@ -196,62 +212,96 @@ edf.gamma = gamma_n
 # %% ------- post chirp sweep -------------------------------------------------
 save_path_post_chirp = save_path + "post_chirp_sweep/"
 
-length_edf = 1.5
-pre_chirp = np.round(np.arange(0.0, 4.01, 0.01), 2)
-post_chirp = np.arange(0, 3.01, 0.01)
+# length_edf = length
+# pre_chirp = np.round(np.arange(2.0, 3.0, 0.01), 2)
+# post_chirp = np.arange(0, 3.01, 0.01)
 
-P_V = np.zeros((pre_chirp.size, post_chirp.size, pulse.n), dtype=float)
-P_T = np.zeros((pre_chirp.size, post_chirp.size, pulse.n), dtype=float)
-E_P = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
-V_W = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
-T_W = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
-ERR = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
+# A_V = np.zeros((pre_chirp.size, post_chirp.size, pulse.n), dtype=complex)
+# P_V = np.zeros((pre_chirp.size, post_chirp.size, pulse.n), dtype=float)
+# P_T = np.zeros((pre_chirp.size, post_chirp.size, pulse.n), dtype=float)
+# E_P = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
+# V_W = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
+# T_W = np.zeros((pre_chirp.size, post_chirp.size), dtype=float)
 
-# %% ------------- experimental edfa output data ------------------------------
-spec = np.genfromtxt(
-    "Sichong/20231103-200MHz-preamp4A-withsplitter-front16inches.CSV",
-    delimiter=",",
-    skip_header=44,
+# # %% --------------------------------------------------------------------------
+# for n, i in enumerate(tqdm(pre_chirp)):
+#     a_v = np.load(save_path + f"{length_edf}_normal_edf_{i}_pm1550.npy")
+#     pulse.a_v[:] = a_v
+
+#     # pm1550 after edfa
+#     pulse.e_p *= loss_spl * loss_ins
+#     for m, j in enumerate(post_chirp):
+#         model_pm1550, sim_pm1550 = propagate(
+#             fiber=pm1550,
+#             pulse=pulse,
+#             length=j,
+#             n_records=None,
+#             plot=None,
+#         )
+#         p_calc = sim_pm1550.pulse_out
+
+#         # ------ temporal and frequency bandwidth
+#         A_V[n, m] = p_calc.a_v
+#         P_V[n, m] = p_calc.p_v
+#         P_T[n, m] = p_calc.p_t
+#         E_P[n, m] = p_calc.e_p
+#         twidth = p_calc.t_width(200)
+#         vwidth = p_calc.v_width(200)
+#         V_W[n, m] = vwidth.eqv
+#         T_W[n, m] = twidth.eqv
+
+
+# P_WL = P_V * dv_dl
+
+# # %% ----- save results -------------------------------------------------------
+# np.save(save_path_post_chirp + "A_V_3.npy", A_V)
+# np.save(save_path_post_chirp + "P_V_3.npy", P_V)
+# np.save(save_path_post_chirp + "P_T_3.npy", P_T)
+# np.save(save_path_post_chirp + "V_W_3.npy", V_W)
+# np.save(save_path_post_chirp + "T_W_3.npy", T_W)
+
+# %% ---- temporary stuff
+A_V = np.vstack(
+    [
+        np.load(save_path_post_chirp + "A_V_1.npy"),
+        np.load(save_path_post_chirp + "A_V_2.npy"),
+        np.load(save_path_post_chirp + "A_V_3.npy"),
+    ]
 )
-# spec = np.genfromtxt("Matt/bottomAmpSpectrum110923.CSV", delimiter=",", skip_header=39)
-spec[:, 0] = c / (spec[:, 0] * 1e-9)
-spec[:, 1] = 10 ** (spec[:, 1] / 10) * spec[:, 0] ** 2 / c
-p_data = pulse.copy()
-p_data.import_p_v(v_grid=spec[:, 0], p_v=spec[:, 1], phi_v=None)
 
-# %% --------------------------------------------------------------------------
-for n, i in enumerate(tqdm(pre_chirp)):
-    a_v = np.load(save_path + f"{length_edf}_normal_edf_{i}_pm1550.npy")
-    pulse.a_v[:] = a_v
+P_V = np.vstack(
+    [
+        np.load(save_path_post_chirp + "P_V_1.npy"),
+        np.load(save_path_post_chirp + "P_V_2.npy"),
+        np.load(save_path_post_chirp + "P_V_3.npy"),
+    ]
+)
 
-    # pm1550 after edfa
-    pulse.e_p *= loss_spl * loss_ins
-    for m, j in enumerate(post_chirp):
-        model_pm1550, sim_pm1550 = propagate(
-            fiber=pm1550,
-            pulse=pulse,
-            length=j,
-            n_records=None,
-            plot=None,
-        )
-        p_calc = sim_pm1550.pulse_out
+P_T = np.vstack(
+    [
+        np.load(save_path_post_chirp + "P_T_1.npy"),
+        np.load(save_path_post_chirp + "P_T_2.npy"),
+        np.load(save_path_post_chirp + "P_T_3.npy"),
+    ]
+)
 
-        # ------ temporal and frequency bandwidth
-        P_V[n, m] = p_calc.p_v
-        P_T[n, m] = p_calc.p_t
-        E_P[n, m] = p_calc.e_p
-        twidth = p_calc.t_width(200)
-        vwidth = p_calc.v_width(200)
-        V_W[n, m] = vwidth.eqv
-        T_W[n, m] = twidth.eqv
+V_W = np.vstack(
+    [
+        np.load(save_path_post_chirp + "V_W_1.npy"),
+        np.load(save_path_post_chirp + "V_W_2.npy"),
+        np.load(save_path_post_chirp + "V_W_3.npy"),
+    ]
+)
 
-        # ------ error calculation
-        p_data.e_p = p_calc.e_p
-        ERR[n, m] = np.mean((p_data.p_v - p_calc.p_v) ** 2) ** 0.5
+T_W = np.vstack(
+    [
+        np.load(save_path_post_chirp + "T_W_1.npy"),
+        np.load(save_path_post_chirp + "T_W_2.npy"),
+        np.load(save_path_post_chirp + "T_W_3.npy"),
+    ]
+)
 
-P_WL = P_V * dv_dl
-
-# %% ----- save results -------------------------------------------------------
+np.save(save_path_post_chirp + "A_V.npy", A_V)
 np.save(save_path_post_chirp + "P_V.npy", P_V)
 np.save(save_path_post_chirp + "P_T.npy", P_T)
 np.save(save_path_post_chirp + "V_W.npy", V_W)
