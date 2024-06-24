@@ -13,6 +13,8 @@ def propagate_amp(
     sum_a_prev=None,
     sum_e_prev=None,
     Pp_prev=None,
+    t_shock=None,
+    raman_on=False,
 ):
     edf: EDF
     model = edf.generate_model(
@@ -21,6 +23,8 @@ def propagate_amp(
         sum_a_prev=sum_a_prev,
         sum_e_prev=sum_e_prev,
         Pp_prev=Pp_prev,
+        t_shock=t_shock,
+        raman_on=raman_on,
     )
     sim = model.simulate(
         length,
@@ -29,7 +33,18 @@ def propagate_amp(
     return model, sim
 
 
-def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
+def amplify(
+    p_fwd,
+    p_bck,
+    edf,
+    length,
+    Pp_fwd,
+    Pp_bck,
+    t_shock=None,
+    raman_on=False,
+    n_records=None,
+    tolerance=1e-3,
+):
     if p_bck is None:
         if Pp_bck == 0:
             model_fwd, sim_fwd = propagate_amp(
@@ -49,7 +64,6 @@ def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
     sum_a_prev = lambda z: 0
     sum_e_prev = lambda z: 0
     Pp_prev = lambda z: 0
-    threshold = 1e-3
     while not done:
         model_fwd = edf.generate_model(
             p_fwd,
@@ -57,6 +71,8 @@ def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
             sum_a_prev=sum_a_prev,
             sum_e_prev=sum_e_prev,
             Pp_prev=Pp_prev,
+            t_shock=t_shock,
+            raman_on=raman_on,
         )
         sim_fwd = model_fwd.simulate(length, n_records=n_records)
         e_p_fwd = sim_fwd.pulse_out.e_p
@@ -77,6 +93,8 @@ def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
             sum_a_prev=sum_a_prev,
             sum_e_prev=sum_e_prev,
             Pp_prev=Pp_prev,
+            t_shock=t_shock,
+            raman_on=raman_on,
         )
         if bck_seeded:
             sim_bck = model_bck.simulate(length, n_records=n_records)
@@ -130,7 +148,7 @@ def amplify(p_fwd, p_bck, edf, length, Pp_fwd, Pp_bck, n_records=None):
         error_bck = abs(e_p_bck - e_p_bck_old) / e_p_bck
         e_p_fwd_old = e_p_fwd
         e_p_bck_old = e_p_bck
-        if error_fwd < threshold and error_bck < threshold:
+        if error_fwd < tolerance and error_bck < tolerance:
             done = True
         print(loop_count, error_fwd, error_bck)
         loop_count += 1

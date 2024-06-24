@@ -16,6 +16,8 @@ def propagate_amp(
     sum_a_prev=None,
     sum_e_prev=None,
     Pp_prev=None,
+    t_shock=None,
+    raman_on=False,
 ):
     edf: EDF
     model = edf.generate_model(
@@ -26,6 +28,8 @@ def propagate_amp(
         sum_a_prev=sum_a_prev,
         sum_e_prev=sum_e_prev,
         Pp_prev=Pp_prev,
+        t_shock=t_shock,
+        raman_on=raman_on,
     )
     sim = model.simulate(
         length,
@@ -34,7 +38,19 @@ def propagate_amp(
     return model, sim
 
 
-def amplify(p_fwd, p_bck, beta_1, beta_2, edf, length, Pp_fwd, Pp_bck, n_records=None):
+def amplify(
+    p_fwd,
+    p_bck,
+    beta_1,
+    beta_2,
+    edf,
+    length,
+    Pp_fwd,
+    Pp_bck,
+    t_shock=None,
+    raman_on=False,
+    n_records=None,
+):
     edf: copy.deepcopy(edf)
     edf_1 = EDF(
         f_r=edf.f_r,
@@ -99,6 +115,8 @@ def amplify(p_fwd, p_bck, beta_1, beta_2, edf, length, Pp_fwd, Pp_bck, n_records
             sum_a_prev=sum_a_prev,
             sum_e_prev=sum_e_prev,
             Pp_prev=Pp_prev,
+            t_shock=t_shock,
+            raman_on=raman_on,
         )
         sim_fwd = model_fwd.simulate(length, n_records=n_records)
         e_p_fwd = sim_fwd.pulse_out.e_p
@@ -121,6 +139,8 @@ def amplify(p_fwd, p_bck, beta_1, beta_2, edf, length, Pp_fwd, Pp_bck, n_records
             sum_a_prev=sum_a_prev,
             sum_e_prev=sum_e_prev,
             Pp_prev=Pp_prev,
+            t_shock=t_shock,
+            raman_on=raman_on,
         )
         if bck_seeded:
             sim_bck = model_bck.simulate(length, n_records=n_records)

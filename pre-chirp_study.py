@@ -21,11 +21,6 @@ km = 1e3
 W = 1.0
 
 output = collections.namedtuple("output", ["model", "sim"])
-# save_path = r"sim_output/11-03-2023_1.5Pfwd_1.5Pbck_pre-chirp_sweep/"
-save_path = (
-    r"sim_output/20231012-200MHz-beforepreamp-withsplitter/gamma_6.5/"
-    + "11-03-2023_0.9mEDF_1.2Pfwd_1.2Pbck_pre-chirp_sweep/"
-)
 
 
 def propagate(fiber, pulse, length, n_records=None):
@@ -131,7 +126,6 @@ model_pm1550, sim_pm1550 = propagate(pm1550, pulse, length_pm1550)
 pulse_pm1550 = sim_pm1550.pulse_out
 
 # %% ------------ active fiber ------------------------------------------------
-tau = 9 * ms
 r_eff_n = 3.06 * um / 2
 r_eff_a = 8.05 * um / 2
 a_eff_n = np.pi * r_eff_n**2
@@ -165,7 +159,7 @@ model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
     p_bck=None,
     edf=edf,
     length=length,
-    Pp_fwd=0 * loss_ins * loss_spl,
+    Pp_fwd=2 * loss_ins * loss_spl,
     Pp_bck=2 * loss_ins * loss_spl,
     n_records=100,
 )

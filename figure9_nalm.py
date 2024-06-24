@@ -21,7 +21,6 @@ km = 1e3
 W = 1.0
 
 output = collections.namedtuple("output", ["model", "sim"])
-output_path = r"C:\\Users\\pchan\\OneDrive - UCB-O365\\sim_output/"
 n_records = None
 
 
@@ -60,22 +59,25 @@ spl_sigma_e = InterpolatedUnivariateSpline(
 
 
 # %% -------------- load dispersion coefficients ------------------------------
-# frame = pd.read_excel(
-#     "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
-# )
 frame = pd.read_excel(
-    "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+    "NLight_provided/nLIGHT Er80-4_125-HD-PM simulated fiber dispersion.xlsx"
 )
-gvd = frame.to_numpy()[:, :2][1:].astype(float)
+# frame = pd.read_excel(
+#     "NLight_provided/nLIGHT_Er110-4_125-PM_simulated_GVD_dispersion.xlsx"
+# )
 
+gvd = frame.to_numpy()[:, :2][1:].astype(float)
 wl = gvd[:, 0] * 1e-9
 omega = 2 * np.pi * c / wl
 omega0 = 2 * np.pi * c / 1560e-9
 polyfit = np.polyfit(omega - omega0, gvd[:, 1], deg=3)
 polyfit = polyfit[::-1]  # lowest order first
 
+# D_g = -12.5
+# polyfit = np.array([-(1560e-9**2) / (2 * np.pi * c) * (D_g * ps / nm / km)])
+
 # %% ------------- pulse ------------------------------------------------------
-f_r = 200e6
+f_r = 100e6
 n = 256
 v_min = c / 1750e-9
 v_max = c / 1400e-9
@@ -94,6 +96,7 @@ pulse = pynlo.light.Pulse.Sech(
     min_time_window,
     alias=2,
 )
+dv_dl = pulse.v_grid**2 / c
 
 # %% --------- passive fibers -------------------------------------------------
 gamma_pm1550 = 1.2
@@ -104,10 +107,9 @@ pm1550.load_fiber_from_dict(pynlo.materials.pm1550)
 pm1550.gamma = gamma_pm1550 / (W * km)
 
 # %% ------------ active fiber ------------------------------------------------
-tau = 9 * ms
 r_eff = 3.06 * um / 2
 a_eff = np.pi * r_eff**2
-n_ion = 110 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
+n_ion = 80 / 10 * np.log(10) / spl_sigma_a(c / 1530e-9)
 
 sigma_a = spl_sigma_a(pulse.v_grid)
 sigma_e = spl_sigma_e(pulse.v_grid)
@@ -130,38 +132,38 @@ edf.gamma = gamma_edf / (W * km)
 beta2_g = polyfit[0]
 D_g = -2 * np.pi * c / 1560e-9**2 * beta2_g / ps * nm * km
 D_p = 18
-l_t = c / 1.5 / f_r  # total cavity length
 
-# ----- target round trip dispersion in the loop
-# D_l = 2
-# l_p_s = 0.15  # shortest straight section I can do
-# l_g = (D_l - D_p) * (l_t - 2 * l_p_s) / (D_g - D_p)
-# l_p_l = (D_g - D_l) * (l_t - 2 * l_p_s) / (D_g - D_p)
+# total fiber length to hit rep-rate, accounting for free space section in the
+# linear arm
+l_free_space = 0.05
+l_t = (c - 2 * f_r * l_free_space) / (f_r * 1.5)
 
-# ----- target total round trip dispersion: D_l -> D_rt
-D_rt = 7.0
-l_p_s = 0.11  # length of straight section
+# target total round trip dispersion: D_l -> D_rt
+D_rt = 0.0
+l_p_s = 0.15  # length of straight section
 l_g = -l_t * (D_p - D_rt) / (D_g - D_p)
 l_p = l_t - l_g  # passive fiber length
 l_p_l = l_p - l_p_s * 2  # passive fiber in loop
+
 assert np.all(np.array([l_g, l_p_s, l_p_l]) >= 0)
+print(f"normal gain: {l_g}, straight: {l_p_s}, passive in loop: {l_p_l}")
 
-print(f"Using {D_rt} ps/nm/km round trip dispersion")
-
-# pulses
 p_gf = pulse.copy()  # gain first
 p_pf = pulse.copy()  # passive first
 p_s = pulse.copy()  # straight section
 p_out = pulse.copy()
 
-# save fields
-p_t_record = []
-p_v_record = []
-
 # parameters
-Pp = 500 * 1e-3
+Pp = 75 * 1e-3
 phi = np.pi / 2
 loss = 10 ** -(0.7 / 10)
+
+# set up plot
+fig, ax = plt.subplots(2, 2, num=f"{D_rt} ps/nm/km, {np.round(Pp * 1e3, 3)} mW pump")
+ax[0, 0].set_xlabel("wavelength (nm)")
+ax[1, 0].set_xlabel("wavelength (nm)")
+ax[0, 1].set_xlabel("time (ps)")
+ax[1, 1].set_xlabel("time (ps)")
 
 loop_count = 0
 include_loss = True
@@ -169,8 +171,8 @@ done = False
 tol = 1e-3
 while not done:
     # ------------- start at splitter --------------------------
-    p_gf.a_t[:] = p_s.a_t[:] / 2  # straight / 2
-    p_pf.a_t[:] = p_s.a_t[:] / 2  # straight / 2
+    p_gf.a_t[:] = p_s.a_t[:] / 2**0.5  # straight / 2
+    p_pf.a_t[:] = p_s.a_t[:] / 2**0.5  # straight / 2
 
     # ------------- gain fiber first --------------------------
     # gain section
@@ -193,6 +195,8 @@ while not done:
         length=l_g,
         Pp_fwd=Pp,
         Pp_bck=0.0,
+        t_shock=None,
+        raman_on=False,
         n_records=n_records,
     )
     p_gf.a_t[:] = sim_fwd.pulse_out.a_t[:]
@@ -209,14 +213,10 @@ while not done:
         p_pf.p_v[:] *= loss  # splice from gain to splitter
 
     # ------------- back to splitter --------------------------
-    p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) + p_pf.a_t[:]
-    p_out.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) - p_pf.a_t[:]
+    p_s.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) / 2**0.5 + p_pf.a_t[:] / 2**0.5
+    p_out.a_t[:] = p_gf.a_t[:] * np.exp(1j * phi) / 2**0.5 - p_pf.a_t[:] / 2**0.5
 
     oc_percent = np.round(p_out.e_p / (p_s.e_p + p_out.e_p), 4)
-
-    # save data
-    p_t_record.append(p_out.p_t.copy())
-    p_v_record.append(p_out.p_v.copy())
 
     # ------------- straight section --------------------------
     if include_loss:
@@ -237,6 +237,49 @@ while not done:
 
     center = pulse.n // 2
     p_s.a_t[:] = np.roll(p_s.a_t, center - p_s.p_t.argmax())
+
+    # update plot
+    if loop_count == 0:
+        (l1,) = ax[0, 0].plot(
+            p_out.wl_grid * 1e9,
+            p_out.p_v / p_out.p_v.max() * dv_dl,
+            animated=True,
+        )
+        (l2,) = ax[0, 1].plot(
+            p_out.t_grid * 1e12,
+            p_out.p_t / p_out.p_t.max(),
+            animated=True,
+        )
+        (l3,) = ax[1, 0].plot(
+            p_s.wl_grid * 1e9,
+            p_s.p_v / p_s.p_v.max() * dv_dl,
+            animated=True,
+        )
+        (l4,) = ax[1, 1].plot(
+            p_s.t_grid * 1e12,
+            p_s.p_t / p_s.p_t.max(),
+            animated=True,
+        )
+        fr_number = ax[0, 0].annotate(
+            "0",
+            (0, 1),
+            xycoords="axes fraction",
+            xytext=(10, -10),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            animated=True,
+        )
+        fig.tight_layout()
+        bm = blit.BlitManager(fig.canvas, [l1, l2, l3, l4, fr_number])
+        bm.update()
+    else:
+        l1.set_ydata(p_out.p_v / p_out.p_v.max() * dv_dl)
+        l2.set_ydata(p_out.p_t / p_out.p_t.max())
+        l3.set_ydata(p_s.p_v / p_s.p_v.max() * dv_dl)
+        l4.set_ydata(p_s.p_t / p_s.p_t.max())
+        fr_number.set_text(f"loop #: {loop_count}")
+        bm.update()
 
     if loop_count == 500:
         done = True
@@ -259,8 +302,3 @@ while not done:
         oc_percent,
         error,
     )
-
-p_v_record = np.asarray(p_v_record)
-p_t_record = np.asarray(p_t_record)
-np.save(output_path + f"p_v_{D_rt}_psnmkm_200MHz_ls_11cm.npy", p_v_record)
-np.save(output_path + f"p_t_{D_rt}_psnmkm_200MHz_ls_11cm.npy", p_t_record)

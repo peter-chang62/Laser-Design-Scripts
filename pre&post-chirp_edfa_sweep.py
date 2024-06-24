@@ -171,46 +171,46 @@ beta_n = edf._beta(pulse.v_grid)
 edf.gamma = gamma_n
 
 # %% ----- pre-chirp sweep ----------------------------------------------------
-# for _, pre_chirp in enumerate(tqdm(np.arange(2.0, 3.0, 0.01))):
-#     # ignore numpy error if length = 0.0, it occurs when n_records is not None and
-#     # propagation length is 0, the output pulse is still correct
-#     model_pm1550, sim_pm1550 = propagate(pm1550, pulse, pre_chirp)
-#     pulse_pm1550 = sim_pm1550.pulse_out
+for _, pre_chirp in enumerate(tqdm(np.arange(2.0, 3.0, 0.01))):
+    # ignore numpy error if length = 0.0, it occurs when n_records is not None and
+    # propagation length is 0, the output pulse is still correct
+    model_pm1550, sim_pm1550 = propagate(pm1550, pulse, pre_chirp)
+    pulse_pm1550 = sim_pm1550.pulse_out
 
-#     # %% ----- edfa
+    # %% ----- edfa
 
-#     # forward and backward pumping
-#     model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
-#         p_fwd=pulse_pm1550,
-#         p_bck=None,
-#         edf=edf,
-#         length=length,
-#         Pp_fwd=1 * loss_ins * loss_spl,  # * loss_mat,
-#         Pp_bck=1 * loss_ins * loss_spl,  # * loss_mat,
-#         n_records=100,
-#     )
+    # forward and backward pumping
+    model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+        p_fwd=pulse_pm1550,
+        p_bck=None,
+        edf=edf,
+        length=length,
+        Pp_fwd=1 * loss_ins * loss_spl,  # * loss_mat,
+        Pp_bck=1 * loss_ins * loss_spl,  # * loss_mat,
+        n_records=100,
+    )
 
-#     # backward pumping only
-#     # model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
-#     #     p_fwd=pulse_pm1550,
-#     #     p_bck=None,
-#     #     edf=edf,
-#     #     length=length,
-#     #     Pp_fwd=0,
-#     #     Pp_bck=0.75 * loss_spl,
-#     #     n_records=100,
-#     # )
+    # backward pumping only
+    # model_fwd, sim_fwd, model_bck, sim_bck = edfa.amplify(
+    #     p_fwd=pulse_pm1550,
+    #     p_bck=None,
+    #     edf=edf,
+    #     length=length,
+    #     Pp_fwd=0,
+    #     Pp_bck=0.75 * loss_spl,
+    #     n_records=100,
+    # )
 
-#     sim = sim_fwd
+    sim = sim_fwd
 
-#     # %% ----- save results
-#     np.save(
-#         save_path + f"{length}_normal_edf_{np.round(pre_chirp, 2)}_pm1550.npy",
-#         sim.pulse_out.a_v,
-#     )
+    # %% ----- save results
+    np.save(
+        save_path + f"{length}_normal_edf_{np.round(pre_chirp, 2)}_pm1550.npy",
+        sim.pulse_out.a_v,
+    )
 
 # %% ------- post chirp sweep -------------------------------------------------
-save_path_post_chirp = save_path + "post_chirp_sweep/"
+# save_path_post_chirp = save_path + "post_chirp_sweep/"
 
 # length_edf = length
 # pre_chirp = np.round(np.arange(2.0, 3.0, 0.01), 2)
@@ -261,48 +261,48 @@ save_path_post_chirp = save_path + "post_chirp_sweep/"
 # np.save(save_path_post_chirp + "T_W_3.npy", T_W)
 
 # %% ---- temporary stuff
-A_V = np.vstack(
-    [
-        np.load(save_path_post_chirp + "A_V_1.npy"),
-        np.load(save_path_post_chirp + "A_V_2.npy"),
-        np.load(save_path_post_chirp + "A_V_3.npy"),
-    ]
-)
+# A_V = np.vstack(
+#     [
+#         np.load(save_path_post_chirp + "A_V_1.npy"),
+#         np.load(save_path_post_chirp + "A_V_2.npy"),
+#         np.load(save_path_post_chirp + "A_V_3.npy"),
+#     ]
+# )
 
-P_V = np.vstack(
-    [
-        np.load(save_path_post_chirp + "P_V_1.npy"),
-        np.load(save_path_post_chirp + "P_V_2.npy"),
-        np.load(save_path_post_chirp + "P_V_3.npy"),
-    ]
-)
+# P_V = np.vstack(
+#     [
+#         np.load(save_path_post_chirp + "P_V_1.npy"),
+#         np.load(save_path_post_chirp + "P_V_2.npy"),
+#         np.load(save_path_post_chirp + "P_V_3.npy"),
+#     ]
+# )
 
-P_T = np.vstack(
-    [
-        np.load(save_path_post_chirp + "P_T_1.npy"),
-        np.load(save_path_post_chirp + "P_T_2.npy"),
-        np.load(save_path_post_chirp + "P_T_3.npy"),
-    ]
-)
+# P_T = np.vstack(
+#     [
+#         np.load(save_path_post_chirp + "P_T_1.npy"),
+#         np.load(save_path_post_chirp + "P_T_2.npy"),
+#         np.load(save_path_post_chirp + "P_T_3.npy"),
+#     ]
+# )
 
-V_W = np.vstack(
-    [
-        np.load(save_path_post_chirp + "V_W_1.npy"),
-        np.load(save_path_post_chirp + "V_W_2.npy"),
-        np.load(save_path_post_chirp + "V_W_3.npy"),
-    ]
-)
+# V_W = np.vstack(
+#     [
+#         np.load(save_path_post_chirp + "V_W_1.npy"),
+#         np.load(save_path_post_chirp + "V_W_2.npy"),
+#         np.load(save_path_post_chirp + "V_W_3.npy"),
+#     ]
+# )
 
-T_W = np.vstack(
-    [
-        np.load(save_path_post_chirp + "T_W_1.npy"),
-        np.load(save_path_post_chirp + "T_W_2.npy"),
-        np.load(save_path_post_chirp + "T_W_3.npy"),
-    ]
-)
+# T_W = np.vstack(
+#     [
+#         np.load(save_path_post_chirp + "T_W_1.npy"),
+#         np.load(save_path_post_chirp + "T_W_2.npy"),
+#         np.load(save_path_post_chirp + "T_W_3.npy"),
+#     ]
+# )
 
-np.save(save_path_post_chirp + "A_V.npy", A_V)
-np.save(save_path_post_chirp + "P_V.npy", P_V)
-np.save(save_path_post_chirp + "P_T.npy", P_T)
-np.save(save_path_post_chirp + "V_W.npy", V_W)
-np.save(save_path_post_chirp + "T_W.npy", T_W)
+# np.save(save_path_post_chirp + "A_V.npy", A_V)
+# np.save(save_path_post_chirp + "P_V.npy", P_V)
+# np.save(save_path_post_chirp + "P_T.npy", P_T)
+# np.save(save_path_post_chirp + "V_W.npy", V_W)
+# np.save(save_path_post_chirp + "T_W.npy", T_W)

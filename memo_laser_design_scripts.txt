@@ -196,3 +196,22 @@ I had previously tried 40 cm of edf, and so I think I'll try 35 cm now and see i
 
 2023-11-02T15:33
 Things are a lot better if I remove the splicy loss between the 8 um core edf and pm1550. 40 cm is then the best. 50 cm I think I had tried with the splice loss removed, but I double checked briefly just now without a huge range of values and it wasn't stable. I tried 45 cm with a wider range of values pushing normal and anomalous and it also isn't stable... So, 40 cm is around the max? +- less than 5cm.
+
+-----------------------------------------------------------
+03-09-2024
+
+current problem:
+
+The splice simulation doesn't match the no splice simulation in the limit that one of the fiber lengths go to zero. Okay I have like 1mm of it, but seriously that shouldn't matter. I already set the splicing loss to 1.0
+
+actually i'm not sure if i ran the sanity check test correctly. 
+
+Okay yeah the convergence is still quite slow compared to the other scenario
+
+okay, that's because in scratch 3 i was testing out what happens if you account for the pigtails before the gain fiber, so that the gain fiber is not totally on one side only...
+
+i didn't think it made sense to include t_shock and raman in some fibers but not the others. So, i removed it from all of them haha. 
+
+okay so everything is matched now to the "simplest" case of how I set up the cavity, with t_shock and raman turned off. And the only additional factor i'm accounting for is multiple gain fibers.
+
+also the way I have it set up, it's easy to calculate for any combination of gain fibers, including combining normal and anomalous gain. I think the simulation in the past was off there, since I know Tsung-Han got it to work pretty well!
